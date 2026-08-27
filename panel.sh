@@ -31,7 +31,7 @@ C_GOLD='[1;93m'; C_GRAY='[0;90m'; C_BLUE='[1;91m'
 # desenham quadrados no lugar dos simbolos. Por isso o padrao e ASCII com
 # cor, que funciona em qualquer lugar. Para ligar os emoji:
 #     TWM_EMOJI=1 ./play.sh
-if [ "${TWM_EMOJI:-0}" = "1" ]; then
+if [ "${TWM_EMOJI:-1}" = "1" ]; then
     I_HP="❤️ "; I_EN="⚡ "; I_LV="⭐ "; I_GO="🪙 "; I_SI="🥈 "
     I_TIT="🎮 "; I_ACT="📋 "; I_EVT="⏰ "; I_ARROW="▸"
     S_ON="🟢"; S_WAIT="🟡"; S_ERR="🔴"; S_OFF="⚫"; S_UNK="⚪"; S_PAUSE="⏸️"
@@ -409,80 +409,87 @@ while true; do
             *)       _cor_c="$C_GREEN" ;;
         esac
 
-        # Cartao visual por conta — somente apresentacao.
+        # Apresentacao por conta — somente visual.
+        # Layout compacto e legivel em Termux, sem alterar nenhuma informacao.
         if [ "$ESTREITO" = 1 ]; then
-            LISTA="${LISTA}$(printf "  %b[%02s]%b %b%s%b  %b%s%b\n" \
-                "$C_RED$C_BOLD" "$idx" "$C_RESET" \
-                "$cor" "$sim" "$C_RESET" \
+            LISTA="${LISTA}$(printf "
+  %b[%02s]%b %b%s%b %b%s%b
+" \
+                "$C_RED$C_BOLD" "$idx" "$C_RESET" "$cor" "$sim" "$C_RESET" \
                 "$C_WHITE$C_BOLD" "$nome" "$C_RESET")"
-            LISTA="${LISTA}$(printf "       %bHP %s%b  %bEN %s%b  %bLV %s%b  %bO %s%b  %bPR %s%b\n" \
-                "$C_RED" "$hp" "$C_RESET" "$C_YELLOW" "$ene" "$C_RESET" \
-                "$C_MAG" "$lvl" "$C_RESET" "$C_GOLD" "$ouro" "$C_RESET" \
-                "$C_GRAY" "$prata" "$C_RESET")"
-            [ -n "$_cbt" ] && LISTA="${LISTA}$(printf "       %b▸ %s%b\n" "$_cor_c" "$_cbt" "$C_RESET")"
+            LISTA="${LISTA}$(printf "       %bHP%b %-6s %bEN%b %-5s %bLV%b %-4s
+" \
+                "$C_GREEN" "$C_RESET" "$hp" "$C_GREEN" "$C_RESET" "$ene" "$C_GREEN" "$C_RESET" "$lvl")"
+            LISTA="${LISTA}$(printf "       %bOURO%b %-7s %bPR%b %-7s %b%s%b
+" \
+                "$C_GREEN" "$C_RESET" "$ouro" "$C_GREEN" "$C_RESET" "$prata" "$C_GRAY" "$_aba" "$C_RESET")"
+            [ -n "$_cbt" ] && LISTA="${LISTA}$(printf "       %b%s%b
+" "$_cor_c" "$_cbt" "$C_RESET")"
         else
-            LISTA="${LISTA}$(printf "  %b╭─%b %b%02s%b %b%-18.18s%b  %b%s%b\n" \
-                "$C_RED" "$C_RESET" "$C_RED$C_BOLD" "$idx" "$C_RESET" \
-                "$C_WHITE$C_BOLD" "$nome" "$C_RESET" "$cor" "$sim" "$C_RESET")"
-            LISTA="${LISTA}$(printf "  %b│%b  %bHP:%s%b  %bEN:%s%b  %bLV:%s%b  %bO:%s%b  %bPR:%s%b\n" \
-                "$C_RED" "$C_RESET" "$C_RED" "$hp" "$C_RESET" "$C_YELLOW" "$ene" "$C_RESET" \
-                "$C_MAG" "$lvl" "$C_RESET" "$C_GOLD" "$ouro" "$C_RESET" "$C_GRAY" "$prata" "$C_RESET")"
+            LISTA="${LISTA}$(printf "  %b[%02s]%b  %b%-20.20s%b  %b%s%b
+" \
+                "$C_RED$C_BOLD" "$idx" "$C_RESET" "$C_WHITE$C_BOLD" "$nome" "$C_RESET" "$cor" "$sim" "$C_RESET")"
+            LISTA="${LISTA}$(printf "       %bHP%b %-7s %bEN%b %-6s %bLV%b %-4s  %bOURO%b %-8s %bPR%b %-8s
+" \
+                "$C_GREEN$C_BOLD" "$C_RESET" "$hp" "$C_GREEN$C_BOLD" "$C_RESET" "$ene" "$C_GREEN$C_BOLD" "$C_RESET" "$lvl" "$C_GREEN$C_BOLD" "$C_RESET" "$ouro" "$C_GREEN$C_BOLD" "$C_RESET" "$prata")"
             if [ -n "$_cbt" ]; then
-                LISTA="${LISTA}$(printf "  %b╰─%b %b%s%b\n" "$C_RED" "$C_RESET" "$_cor_c" "$_cbt" "$C_RESET")"
+                LISTA="${LISTA}$(printf "       %b%s%b
+" "$_cor_c" "$_cbt" "$C_RESET")"
             else
-                LISTA="${LISTA}$(printf "  %b╰─%b %b%s%b\n" "$C_RED" "$C_RESET" "$C_CYAN" "$_aba" "$C_RESET")"
+                LISTA="${LISTA}$(printf "       %bPÁGINA%b  %s
+" "$C_GREEN$C_BOLD" "$C_RESET" "$_aba")"
             fi
             if [ -n "$_cbt" ]; then
-                ATIV="${ATIV}$(printf "  %b▸ %-18.18s%b  %b%s%b  %b%s%b\n" "$C_GREEN$C_BOLD" "$nome" "$C_RESET" "$C_RED" "$_cbt" "$C_CYAN" "$_aba" "$C_RESET")"
+                ATIV="${ATIV}$(printf "  %b%02s%b  %b%-20.20s%b  %b%s%b  %s
+" "$C_RED$C_BOLD" "$idx" "$C_RESET" "$C_WHITE$C_BOLD" "$nome" "$C_RESET" "$C_RED" "$_cbt" "$C_RESET" "$_aba")"
             else
-                ATIV="${ATIV}$(printf "  %b▸ %-18.18s%b  %b%s%b\n" "$C_GREEN$C_BOLD" "$nome" "$C_RESET" "$C_CYAN" "$_aba" "$C_RESET")"
+                ATIV="${ATIV}$(printf "  %b%02s%b  %b%-20.20s%b  %b%s%b
+" "$C_RED$C_BOLD" "$idx" "$C_RESET" "$C_WHITE$C_BOLD" "$nome" "$C_RESET" "$C_GREEN" "$_aba" "$C_RESET")"
             fi
         fi
     done 3< "$ACCOUNTS_FILE"
 
     if [ "${PANEL_DRAW:-$HAS_TTY}" = 1 ]; then
         # ============================================================
-        #                    DRAGONS COMMAND CENTER
-        #             Apresentacao apenas — logica intacta.
+        # DRAGONS — visualizacao. Somente apresentacao.
         # ============================================================
-        _top="╔══════════════════════════════════════════════════════════════════════╗"
-        _mid="╠══════════════════════════════════════════════════════════════════════╣"
-        _bot="╚══════════════════════════════════════════════════════════════════════╝"
-        if [ "$LARG" -lt 56 ]; then
-            _top="╔════════════════════════════════════════════╗"
-            _mid="╠════════════════════════════════════════════╣"
-            _bot="╚════════════════════════════════════════════╝"
-        fi
-        printf "\033[2J\033[H"
-        printf "%b%s%b\n" "$C_RED" "$_top" "$C_RESET"
-        printf "%b║%b        /\_/\   D R A G O N S   %b🐉%b        ║%b\n" "$C_RED" "$C_RESET" "$C_GREEN$C_BOLD" "$C_RESET" "$C_RED"
-        printf "%b║%b       ( o.o )   COMMAND CENTER · BR          ║%b\n" "$C_RED" "$C_GREEN$C_BOLD" "$C_RESET"
-        printf "%b║%b        > ^ <    %s conta(s) · %s             ║%b\n" "$C_RED" "$C_RED$C_BOLD" "$n" "$agora" "$C_RESET"
-        printf "%b%s%b\n" "$C_RED" "$_mid" "$C_RESET"
-        printf "  %b◆ CONTAS EM CAMPO%b\n" "$C_GREEN$C_BOLD" "$C_RESET"
-        printf "%b%s%b" "$C_WHITE" "$LISTA" "$C_RESET"
-        printf "%b%s%b\n" "$C_RED" "$_mid" "$C_RESET"
+        printf "[2J[H"
+        printf "%b  DRAGONS%b  //  TWM MULTI-CONTAS  //  BR
+" "$C_GREEN$C_BOLD" "$C_RESET"
+        printf "%b  /\_/\   %bCLÃ EM CAMPO%b   %s conta(s)   %s
+" "$C_RED" "$C_GREEN$C_BOLD" "$C_RESET" "$n" "$agora"
+        printf "%b  >^_^<%b  -----------------------------------------------
+" "$C_RED" "$C_RESET"
+        printf "
+  %bCONTAS%b
+" "$C_GREEN$C_BOLD" "$C_RESET"
+        printf "%b" "$LISTA"
+        printf "
+  %bRESUMO%b   %bONLINE %s%b   %bSUBINDO %s%b   %bFORA %s%b
+" \
+            "$C_GREEN$C_BOLD" "$C_RESET" "$C_GREEN" "$n_on" "$C_RESET" "$C_YELLOW" "$n_up" "$C_RESET" "$C_RED" "$n_off" "$C_RESET"
+        printf "  %bPRÓXIMA BATALHA%b   %b%s%b
+" "$C_RED$C_BOLD" "$C_RESET" "$C_GREEN$C_BOLD" "$(proximo_evento)" "$C_RESET"
         if [ "$ESTREITO" != 1 ]; then
-            printf "  %b◆ ATIVIDADE DO CLÃ%b\n" "$C_GREEN$C_BOLD" "$C_RESET"
+            printf "
+  %bATIVIDADE%b
+" "$C_GREEN$C_BOLD" "$C_RESET"
             printf "%b" "$ATIV"
-            printf "%b%s%b\n" "$C_RED" "$_mid" "$C_RESET"
-        fi
-        if [ "$LARG" -ge 100 ]; then
-            printf "  %b%s %s%b   %b%s %s%b   %b%s %s%b   %b▸ %s%b\n" \
-                "$C_GREEN" "$S_ON" "$n_on" "$C_RESET" "$C_YELLOW" "$S_WAIT" "$n_up" "$C_RESET" \
-                "$C_RED" "$S_ERR" "$n_off" "$C_RESET" "$C_GREEN$C_BOLD" "$(proximo_evento)" "$C_RESET"
-        else
-            printf "  %b%s %s%b   %b%s %s%b   %b%s %s%b\n" \
-                "$C_GREEN" "$S_ON" "$n_on" "$C_RESET" "$C_YELLOW" "$S_WAIT" "$n_up" "$C_RESET" "$C_RED" "$S_ERR" "$n_off" "$C_RESET"
-            printf "  %b▸ PRÓXIMO: %.*s%b\n" "$C_GREEN$C_BOLD" "$((LARG - 15))" "$(proximo_evento)" "$C_RESET"
         fi
         if [ "${PANEL_SUPERVISE:-0}" != "1" ]; then
-            printf "  %b◆ OBSERVAÇÃO · CTRL+C NÃO PARA AS CONTAS%b\n" "$C_GRAY" "$C_RESET"
+            printf "
+  %bINFO%b  CTRL+C fecha somente o painel; as contas continuam.
+" "$C_GRAY" "$C_RESET"
         fi
         if [ "$n_off" -gt 0 ] && [ "${PANEL_SUPERVISE:-0}" != "1" ]; then
-            printf "  %b◆ ALERTA: %s FORA DO AR · ./play.sh%b\n" "$C_RED$C_BOLD" "$n_off" "$C_RESET"
+            printf "  %bALERTA%b  %s conta(s) fora do ar — use ./play.sh
+" "$C_RED$C_BOLD" "$C_RESET" "$n_off"
         fi
-        printf "%b%s%b\n" "$C_RED" "$_bot" "$C_RESET"
+        printf "
+%b  ---------------------------------------------------------------%b
+" "$C_RED" "$C_RESET"
+        printf "  %bDRAGONS%b  |  painel atualiza a cada %ss
+" "$C_GREEN$C_BOLD" "$C_RESET" "${PANEL_INTERVAL:-20}"
     fi
 
     # CORRECAO: eram 20 chamadas de "sleep 1" a cada volta do painel, ou

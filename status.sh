@@ -92,7 +92,7 @@ resolve_accounts_file() {
 ACCOUNTS_FILE=$(resolve_accounts_file)
 
 if [ ! -s "$ACCOUNTS_FILE" ]; then
-    printf "\033[1;91m╔══════════════════════════════════════════════╗\033[0m\n"\nprintf "\033[1;92m║          D R A G O N S · STATUS              ║\033[0m\n"\nprintf "\033[1;91m╚══════════════════════════════════════════════╝\033[0m\n"\nprintf "Nenhuma conta cadastrada em %s\n" "$ACCOUNTS_FILE"
+    printf "\033[1;92m===============================================\033[0m\n"\nprintf "\033[1;92m   DRAGONS  //  STATUS DAS CONTAS\033[0m\n"\nprintf "\033[1;91m   /\\_/\\   SOMENTE LEITURA   >^_^<\033[0m\n"\nprintf "\033[1;92m===============================================\033[0m\n"\nprintf "Nenhuma conta cadastrada em %s\n" "$ACCOUNTS_FILE"
     printf "Execute: ./setup.sh\n"
     exit 1
 fi

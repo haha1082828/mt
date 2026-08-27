@@ -98,24 +98,35 @@ show_menu() {
     n=0
     [ -f "$ACCOUNTS_FILE" ] && n=$(grep -c -E '^[0-9]+[|]' "$ACCOUNTS_FILE" 2>/dev/null)
     case "$n" in ''|*[!0-9]*) n=0 ;; esac
-    printf "\033[1;91m╔════════════════════════════════════════════════════════════════════╗\033[0m\n"
-    printf "\033[1;92m║        /\_/\   D R A G O N S   ·   ACCOUNT FORGE            ║\033[0m\n"
-    printf "\033[1;92m║       ( o.o )   TWM MULTI · BR · %2s conta(s)                 ║\033[0m\n" "$n"
-    printf "\033[1;91m║        > ^ <    GERENCIADOR DO CLÃ                            ║\033[0m\n"
-    printf "\033[1;91m╚════════════════════════════════════════════════════════════════════╝\033[0m\n\n"
-    printf "  \033[1;92m◆ 1\033[0m  Listar contas\n"
-    printf "  \033[1;92m◆ 2\033[0m  Adicionar conta\n"
-    printf "  \033[1;92m◆ 3\033[0m  Remover conta\n"
-    printf "  \033[1;92m◆ 4\033[0m  Testar login\n\n"
-    printf "  \033[1;91m◆ 0\033[0m  Sair\n"
-    printf "\033[1;91m%s\033[0m\n" "$_L"
-    printf "  \033[1;97mOpção ▸ \033[0m"
+    printf "[1;91m===============================================[0m
+"
+    printf "[1;92m   DRAGONS  //  ACCOUNT CONTROL  //  BR[0m
+"
+    printf "[1;91m===============================================[0m
+"
+    printf "  [1;97m/\_/\  [1;92mCLÃ DRAGONS[0m  |  [1;97m%s conta(s)[0m
+" "$n"
+    printf "  [1;90m>^_^<[0m
+
+"
+    printf "  [1;92m[1][0m  Listar contas
+"
+    printf "  [1;92m[2][0m  Adicionar conta
+"
+    printf "  [1;92m[3][0m  Remover conta
+"
+    printf "  [1;92m[4][0m  Testar login
+"
+    printf "  [1;91m[0][0m  Sair
+
+"
+    printf "  [1;92mDRAGONS ▸[0m "
 }
 
 
 list_accounts() {
     clear
-    printf "${CYAN}╔══════════════════════════════════════════════════╗${RESET}\n${CYAN}║              🐉 CONTAS · DRAGONS                ║${RESET}\n${CYAN}╚══════════════════════════════════════════════════╝${RESET}\n\n"
+    printf "${CYAN}===============================================${RESET}\n${CYAN}  DRAGONS  //  CONTAS CADASTRADAS${RESET}\n${CYAN}===============================================${RESET}\n\n"
     if [ ! -f "$ACCOUNTS_FILE" ] || [ ! -s "$ACCOUNTS_FILE" ]; then
         printf "${RED}Nenhuma conta cadastrada ainda.${RESET}\n"
     else
@@ -129,7 +140,7 @@ list_accounts() {
             n=$((n + 1))
         done < "$ACCOUNTS_FILE"
     fi
-    printf "\nENTER para voltar..."
+    printf "\n\033[2mENTER para voltar ▸\033[0m"
     read -r _d
 }
 
@@ -142,14 +153,14 @@ ${CYAN}Servidor: BR - furiadetitas.net${RESET}
 
 add_account() {
     clear
-    printf "${CYAN}╔══════════════════════════════════════════════════╗${RESET}\n${CYAN}║             🐉 NOVA CONTA · DRAGONS             ║${RESET}\n${CYAN}╚══════════════════════════════════════════════════╝${RESET}\n"
+    printf "${CYAN}===============================================${RESET}\n${CYAN}  DRAGONS  //  NOVA CONTA${RESET}\n${CYAN}===============================================${RESET}\n"
     show_servers
     srv=1
 
     url=$(server_url "$srv")
     tag=$(server_tag "$srv")
 
-    printf "Usuario (%s): " "$url"
+    printf "\033[1;92mUSUÁRIO\033[0m  %s ▸ " "$url"
     read -r user
     user=$(printf %s "$user" | tr -d '[:cntrl:]')
 
@@ -167,7 +178,7 @@ add_account() {
         sleep 2; return
     fi
 
-    printf "Senha: "
+    printf "\033[1;92mSENHA\033[0m   ▸ "
     stty -echo 2>/dev/null
     read -r pass
     stty echo 2>/dev/null
@@ -213,7 +224,7 @@ add_account() {
 
 remove_account() {
     clear
-    printf "${CYAN}╔══════════════════════════════════════════════════╗${RESET}\n${CYAN}║              🔥 REMOVER · DRAGONS               ║${RESET}\n${CYAN}╚══════════════════════════════════════════════════╝${RESET}\n\n"
+    printf "${CYAN}===============================================${RESET}\n${CYAN}  DRAGONS  //  REMOVER CONTA${RESET}\n${CYAN}===============================================${RESET}\n\n"
     [ ! -f "$ACCOUNTS_FILE" ] || [ ! -s "$ACCOUNTS_FILE" ] && \
         printf "${RED}Nenhuma conta.${RESET}\n" && sleep 2 && return
 
@@ -269,7 +280,7 @@ remove_account() {
 
 test_account() {
     clear
-    printf "${CYAN}╔══════════════════════════════════════════════════╗${RESET}\n${CYAN}║               ⚔ TESTE · DRAGONS                 ║${RESET}\n${CYAN}╚══════════════════════════════════════════════════╝${RESET}\n\n"
+    printf "${CYAN}===============================================${RESET}\n${CYAN}  DRAGONS  //  TESTAR LOGIN${RESET}\n${CYAN}===============================================${RESET}\n\n"
     [ ! -f "$ACCOUNTS_FILE" ] || [ ! -s "$ACCOUNTS_FILE" ] && \
         printf "${RED}Nenhuma conta.${RESET}\n" && sleep 2 && return
 

@@ -259,12 +259,15 @@ total=$(grep -c -E '^[0-9]+\|' "$ACCOUNTS_FILE" 2>/dev/null)
 case "$total" in *[!0-9]*) total=0 ;; esac
 [ -z "$total" ] && total=0
 
-printf "${GREEN}================================================${RESET}\n"
-printf "${GREEN}   DRAGONS  //  INICIALIZAÇÃO DO CLÃ${RESET}\n"
-printf "${RED}   /\\_/\\    MULTI-CONTAS    >^_^<${RESET}\n"
-printf "${GREEN}================================================${RESET}\n"
-printf "${GOLD}%s conta(s) cadastrada(s)${RESET}  |  BR\n" "$total"
-printf "${GOLD}Arquivo:${RESET} %s\n\n" "$ACCOUNTS_FILE"
+printf "${GREEN}🐉 DRAGONS${RESET}    ${WHITE}TWM MULTI-CONTAS${RESET}    ${GRAY}BR${RESET}
+"
+printf "${GRAY}────────────────────────────────────────────${RESET}
+"
+printf "${GREEN}%s${RESET} conta(s) cadastrada(s)
+" "$total"
+printf "${GRAY}%s${RESET}
+
+" "$ACCOUNTS_FILE"
 
 # Android 12+ derruba a sessao inteira com SIGKILL.
 #
@@ -354,7 +357,7 @@ while IFS='|' read -r srv user encoded <&3; do
     log_file="$HOME/.twm/${acc_id}/twm.log"
     pid_file="$STATUS_DIR/${acc_id}.pid"
 
-    printf "${GOLD}[%d/%d]${RESET} [%s] %s\n" "$n" "$total" "$tag" "$user"
+    printf "${GREEN}[%02d/%02d]${RESET}  ${WHITE}%s${RESET}  ${GRAY}%s${RESET}\n" "$n" "$total" "$user" "$tag"
     if [ "$(server_scheme "$srv")" = "http" ]; then
         printf "   ${YELLOW}AVISO: este servidor nao suporta HTTPS - senha em texto claro${RESET}\n"
     fi
@@ -402,8 +405,8 @@ if [ "$n" -eq 0 ]; then
     exit 1
 fi
 
-printf "\n${GREEN}DRAGONS  //  %s conta(s) processada(s)${RESET}\n" "$n"
-printf "${GREEN}Iniciadas: %s${RESET}  |  ${GOLD}Já rodando: %s${RESET}\n\n" "$((n - n_kept))" "$n_kept"
+printf "\n${GREEN}🐉 DRAGONS${RESET}  •  %s conta(s) processada(s)\n" "$n"
+printf "${GREEN}Iniciadas${RESET} %s    ${GOLD}Já rodando${RESET} %s\n\n" "$((n - n_kept))" "$n_kept"
 printf "Ver o painel:  ${CYAN}./status.sh${RESET}  (nao mexe nas contas)\n"
 printf "Log de conta:  ${CYAN}tail -f ~/.twm/BR_NomeConta/twm.log${RESET}\n"
 printf "Reiniciar:     ${CYAN}./play.sh --restart${RESET}\n"

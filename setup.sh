@@ -98,35 +98,31 @@ show_menu() {
     n=0
     [ -f "$ACCOUNTS_FILE" ] && n=$(grep -c -E '^[0-9]+[|]' "$ACCOUNTS_FILE" 2>/dev/null)
     case "$n" in ''|*[!0-9]*) n=0 ;; esac
-    printf "[1;91m===============================================[0m
+    printf "[1;92m🐉 DRAGONS[0m    [1;37mTWM MULTI-CONTAS[0m    [0;90mBR[0m
 "
-    printf "[1;92m   DRAGONS  //  ACCOUNT CONTROL  //  BR[0m
+    printf "[0;90m────────────────────────────────────────────[0m
 "
-    printf "[1;91m===============================================[0m
-"
-    printf "  [1;97m/\_/\  [1;92mCLÃ DRAGONS[0m  |  [1;97m%s conta(s)[0m
+    printf "[1;92mCLÃ[0m  %s conta(s) cadastrada(s)
+
 " "$n"
-    printf "  [1;90m>^_^<[0m
+    printf "[1;92m[1][0m  Listar contas
+"
+    printf "[1;92m[2][0m  Adicionar conta
+"
+    printf "[1;92m[3][0m  Remover conta
+"
+    printf "[1;92m[4][0m  Testar login
+"
+    printf "[1;91m[0][0m  Sair
 
 "
-    printf "  [1;92m[1][0m  Listar contas
-"
-    printf "  [1;92m[2][0m  Adicionar conta
-"
-    printf "  [1;92m[3][0m  Remover conta
-"
-    printf "  [1;92m[4][0m  Testar login
-"
-    printf "  [1;91m[0][0m  Sair
-
-"
-    printf "  [1;92mDRAGONS ▸[0m "
+    printf "[1;92mDRAGONS[0m ▸ "
 }
 
 
 list_accounts() {
     clear
-    printf "${CYAN}===============================================${RESET}\n${CYAN}  DRAGONS  //  CONTAS CADASTRADAS${RESET}\n${CYAN}===============================================${RESET}\n\n"
+    printf "${GREEN}🐉 DRAGONS${RESET}  ${WHITE}CONTAS CADASTRADAS${RESET}\n${GRAY}────────────────────────────────────────────${RESET}\n\n"
     if [ ! -f "$ACCOUNTS_FILE" ] || [ ! -s "$ACCOUNTS_FILE" ]; then
         printf "${RED}Nenhuma conta cadastrada ainda.${RESET}\n"
     else
@@ -153,14 +149,14 @@ ${CYAN}Servidor: BR - furiadetitas.net${RESET}
 
 add_account() {
     clear
-    printf "${CYAN}===============================================${RESET}\n${CYAN}  DRAGONS  //  NOVA CONTA${RESET}\n${CYAN}===============================================${RESET}\n"
+    printf "${GREEN}🐉 DRAGONS${RESET}  ${WHITE}NOVA CONTA${RESET}\n${GRAY}────────────────────────────────────────────${RESET}\n"
     show_servers
     srv=1
 
     url=$(server_url "$srv")
     tag=$(server_tag "$srv")
 
-    printf "\033[1;92mUSUÁRIO\033[0m  %s ▸ " "$url"
+    printf "\033[1;92m👤 USUÁRIO\033[0m\n\033[0;90m%s\033[0m\n> " "$url"
     read -r user
     user=$(printf %s "$user" | tr -d '[:cntrl:]')
 
@@ -178,7 +174,7 @@ add_account() {
         sleep 2; return
     fi
 
-    printf "\033[1;92mSENHA\033[0m   ▸ "
+    printf "\033[1;92m🔐 SENHA\033[0m\n> "
     stty -echo 2>/dev/null
     read -r pass
     stty echo 2>/dev/null
@@ -224,7 +220,7 @@ add_account() {
 
 remove_account() {
     clear
-    printf "${CYAN}===============================================${RESET}\n${CYAN}  DRAGONS  //  REMOVER CONTA${RESET}\n${CYAN}===============================================${RESET}\n\n"
+    printf "${GREEN}🐉 DRAGONS${RESET}  ${WHITE}REMOVER CONTA${RESET}\n${GRAY}────────────────────────────────────────────${RESET}\n\n"
     [ ! -f "$ACCOUNTS_FILE" ] || [ ! -s "$ACCOUNTS_FILE" ] && \
         printf "${RED}Nenhuma conta.${RESET}\n" && sleep 2 && return
 
@@ -237,7 +233,7 @@ remove_account() {
         n=$((n + 1))
     done < "$ACCOUNTS_FILE"
 
-    printf "\nNumero (0 = cancelar): "
+    printf "\n\033[1;92mEscolha a conta\033[0m\n\033[0;90mDigite 0 para cancelar.\033[0m\n> "
     read -r choice
     [ "$choice" = "0" ] || [ -z "$choice" ] && return
 
@@ -280,7 +276,7 @@ remove_account() {
 
 test_account() {
     clear
-    printf "${CYAN}===============================================${RESET}\n${CYAN}  DRAGONS  //  TESTAR LOGIN${RESET}\n${CYAN}===============================================${RESET}\n\n"
+    printf "${GREEN}🐉 DRAGONS${RESET}  ${WHITE}TESTAR LOGIN${RESET}\n${GRAY}────────────────────────────────────────────${RESET}\n\n"
     [ ! -f "$ACCOUNTS_FILE" ] || [ ! -s "$ACCOUNTS_FILE" ] && \
         printf "${RED}Nenhuma conta.${RESET}\n" && sleep 2 && return
 
@@ -293,7 +289,7 @@ test_account() {
         n=$((n + 1))
     done < "$ACCOUNTS_FILE"
 
-    printf "\nNumero: "
+    printf "\n\033[1;92mEscolha a conta\033[0m\n> "
     read -r choice
     total=$(grep -c -E '^[0-9]+[|]' "$ACCOUNTS_FILE" 2>/dev/null)
     case "$total" in ''|*[!0-9]*) total=0 ;; esac

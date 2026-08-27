@@ -427,39 +427,35 @@ while true; do
             *) _estado="?" ;;
         esac
 
-        # Cabecalho da conta: indice + nome + estado.
-        _prefix="[$idx] "
-        _suffix=" [$_estado]"
-        _nw=$((_iw - ${#_prefix} - ${#_suffix}))
-        [ "$_nw" -lt 6 ] && _nw=6
+        # Espaço entre contas para legibilidade
+        [ "$idx" -gt 1 ] && LISTA="${LISTA}$(printf '\n')"
 
-        LISTA="${LISTA}$(printf '%b+-%-*s-+%b\n' "$cor" "$_iw" "" "$C_RESET")"
-        LISTA="${LISTA}$(printf '%b| %b%-*.*s%b%*s %b|%b\n' \
-            "$cor" "$C_WHITE" "$_nw" "$_nw" "$_prefix$nome" "$C_RESET" \
-            "$(( ${#_suffix} ))" "$_suffix" "$cor" "$C_RESET")"
+        # Cabecalho da conta: indice + nome + estado.
+        LISTA="${LISTA}$(printf '%b┌─ %b[%d] %-*.*s%b %s %b─┐%b\n' \
+            "$cor" "$C_WHITE" "$idx" "$((_iw - 6))" "$((_iw - 6))" "$nome" "$C_RESET" "$_estado" "$cor" "$C_RESET")"
 
         # Linha de atributos. Em telas estreitas ela quebra em dois blocos
         # fixos, em vez de tentar manter cinco colunas na mesma linha.
         if [ "$LARG" -lt 60 ]; then
-            _stats1="HP $hp   EN $ene   LV $lvl"
-            _stats2="OURO $ouro   PR $prata"
+            _stats1="$I_HP $hp   $I_EN $ene   $I_LV $lvl"
+            _stats2="$I_GO $ouro   $I_SI $prata"
+            LISTA="${LISTA}$(printf '%b│ %b%-*.*s%b │%b\n' \
+                "$C_GRAY" "$C_WHITE" "$_iw" "$_iw" "$_stats1" "$C_RESET" "$cor" "$C_RESET")"
+            LISTA="${LISTA}$(printf '%b│ %b%-*.*s%b │%b\n' \
+                "$C_GRAY" "$C_WHITE" "$_iw" "$_iw" "$_stats2" "$C_RESET" "$cor" "$C_RESET")"
         else
-            _stats1="HP $hp   EN $ene   LV $lvl   OURO $ouro"
-            _stats2="PR $prata"
+            _stats1="$I_HP $hp   $I_EN $ene   $I_LV $lvl   $I_GO $ouro   $I_SI $prata"
+            LISTA="${LISTA}$(printf '%b│ %b%-*.*s%b │%b\n' \
+                "$C_GRAY" "$C_WHITE" "$_iw" "$_iw" "$_stats1" "$C_RESET" "$cor" "$C_RESET")"
         fi
-
-        LISTA="${LISTA}$(printf '%b| %-*.*s |%b\n' \
-            "$C_GRAY" "$_iw" "$_iw" "$_stats1" "$C_RESET")"
-        LISTA="${LISTA}$(printf '%b| %-*.*s |%b\n' \
-            "$C_GRAY" "$_iw" "$_iw" "$_stats2" "$C_RESET")"
 
         # Pagina atual e combate ficam juntos na ultima linha. Se houver
         # combate, ele ganha prioridade visual sem alterar qualquer dado.
         _info="$_aba"
         [ -n "$_cbt" ] && _info="$_aba  |  $_cbt"
-        LISTA="${LISTA}$(printf '%b| %-*.*s |%b\n' \
-            "$C_CYAN" "$_iw" "$_iw" "$_info" "$C_RESET")"
-        LISTA="${LISTA}$(printf '%b+-%-*s-+%b\n' "$cor" "$_iw" "" "$C_RESET")"
+        LISTA="${LISTA}$(printf '%b│ %b%-*.*s%b │%b\n' \
+            "$C_CYAN" "$C_WHITE" "$_iw" "$_iw" "$_info" "$C_RESET" "$cor" "$C_RESET")"
+        LISTA="${LISTA}$(printf '%b└─%*s─┘%b\n' "$cor" "$_iw" "" "$C_RESET")"
 
         # Mantem a secao de atividade para telas largas, como no painel
         # original. Nao e exibida dentro da caixa para nao duplicar nomes.

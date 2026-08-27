@@ -31,7 +31,7 @@ C_GOLD='\033[0;33m'; C_GRAY='\033[0;37m';  C_BLUE='\033[1;34m'
 # desenham quadrados no lugar dos simbolos. Por isso o padrao e ASCII com
 # cor, que funciona em qualquer lugar. Para ligar os emoji:
 #     TWM_EMOJI=1 ./play.sh
-if [ "${TWM_EMOJI:-1}" = "1" ]; then
+if [ "${TWM_EMOJI:-0}" = "1" ]; then
     I_HP="❤️ "; I_EN="⚡ "; I_LV="⭐ "; I_GO="🪙 "; I_SI="🥈 "
     I_TIT="🎮 "; I_ACT="📋 "; I_EVT="⏰ "; I_ARROW="▸"
     S_ON="🟢"; S_WAIT="🟡"; S_ERR="🔴"; S_OFF="⚫"; S_UNK="⚪"; S_PAUSE="⏸️"
@@ -410,88 +410,120 @@ while true; do
         esac
 
         if [ "$ESTREITO" = 1 ]; then
-            LISTA="${LISTA}$(printf "\n%b[%02s]%b  %b%s%b  %b%s%b\n" \
-                "$C_RED$C_BOLD" "$idx" "$C_RESET" "$C_WHITE$C_BOLD" "$nome" "$C_RESET" "$cor" "$sim" "$C_RESET")"
-            LISTA="${LISTA}$(printf "     %bHP%b %s    %bEN%b %s    %bLV%b %s\n" \
-                "$C_GREEN$C_BOLD" "$C_RESET" "$hp" "$C_GREEN$C_BOLD" "$C_RESET" "$ene" "$C_GREEN$C_BOLD" "$C_RESET" "$lvl")"
-            LISTA="${LISTA}$(printf "     %bOURO%b %s    %bPR%b %s\n" \
-                "$C_GREEN$C_BOLD" "$C_RESET" "$ouro" "$C_GREEN$C_BOLD" "$C_RESET" "$prata")"
-            LISTA="${LISTA}$(printf "     %b%s%b" "$C_GRAY" "$_aba" "$C_RESET")"
-            [ -n "$_cbt" ] && LISTA="${LISTA}$(printf "  %b%s%b" "$_cor_c" "$_cbt" "$C_RESET")"
-            LISTA="${LISTA}\n"
-        else
-            LISTA="${LISTA}$(printf "\n%b[%02s]%b  %b%-22.22s%b  %b%s%b\n" \
-                "$C_RED$C_BOLD" "$idx" "$C_RESET" "$C_WHITE$C_BOLD" "$nome" "$C_RESET" "$cor" "$sim" "$C_RESET")"
-            LISTA="${LISTA}$(printf "     %bHP%b %-8s  %bEN%b %-7s  %bLV%b %-5s  %bOURO%b %-9s  %bPR%b %s\n" \
-                "$C_GREEN$C_BOLD" "$C_RESET" "$hp" "$C_GREEN$C_BOLD" "$C_RESET" "$ene" \
-                "$C_GREEN$C_BOLD" "$C_RESET" "$lvl" "$C_GREEN$C_BOLD" "$C_RESET" "$ouro" \
+            # Celular: cada conta em um bloco vertical, sem colunas espremidas.
+            LISTA="${LISTA}$(printf '%b[%02s]%b  %b%s%b  %b%s%b\n' \
+                "$C_RED$C_BOLD" "$idx" "$C_RESET" \
+                "$C_WHITE$C_BOLD" "$nome" "$C_RESET" \
+                "$cor" "$sim" "$C_RESET")"
+            LISTA="${LISTA}$(printf '     %bHP%b %-8s  %bEN%b %-7s  %bLV%b %s\n' \
+                "$C_GREEN$C_BOLD" "$C_RESET" "$hp" \
+                "$C_GREEN$C_BOLD" "$C_RESET" "$ene" \
+                "$C_GREEN$C_BOLD" "$C_RESET" "$lvl")"
+            LISTA="${LISTA}$(printf '     %bOURO%b %-10s  %bPR%b %s\n' \
+                "$C_GREEN$C_BOLD" "$C_RESET" "$ouro" \
                 "$C_GREEN$C_BOLD" "$C_RESET" "$prata")"
             if [ -n "$_cbt" ]; then
-                ATIV="${ATIV}$(printf "     %b%s%b  %b▸%b  %b%s%b  %b%s%b\n" \
-                    "$C_WHITE" "$nome" "$C_RESET" "$C_DIM" "$C_RESET" "$C_CYAN" "$_aba" "$C_RESET" "$_cor_c" "$_cbt" "$C_RESET")"
+                LISTA="${LISTA}$(printf '     %b%s%b  •  %b%s%b\n' \
+                    "$C_GRAY" "$_aba" "$C_RESET" "$_cor_c" "$_cbt" "$C_RESET")"
             else
-                ATIV="${ATIV}$(printf "     %b%s%b  %b▸%b  %b%s%b\n" \
-                    "$C_WHITE" "$nome" "$C_RESET" "$C_DIM" "$C_RESET" "$C_CYAN" "$_aba" "$C_RESET")"
+                LISTA="${LISTA}$(printf '     %b%s%b\n' \
+                    "$C_GRAY" "$_aba" "$C_RESET")"
+            fi
+        else
+            # Tela larga: duas linhas por conta, com espaçamento fixo.
+            LISTA="${LISTA}$(printf '%b[%02s]%b  %b%-20.20s%b  %b%s%b\n' \
+                "$C_RED$C_BOLD" "$idx" "$C_RESET" \
+                "$C_WHITE$C_BOLD" "$nome" "$C_RESET" \
+                "$cor" "$sim" "$C_RESET")"
+            LISTA="${LISTA}$(printf '     %bHP%b %-8s  %bEN%b %-7s  %bLV%b %-5s  %bOURO%b %-9s  %bPR%b %s\n' \
+                "$C_GREEN$C_BOLD" "$C_RESET" "$hp" \
+                "$C_GREEN$C_BOLD" "$C_RESET" "$ene" \
+                "$C_GREEN$C_BOLD" "$C_RESET" "$lvl" \
+                "$C_GREEN$C_BOLD" "$C_RESET" "$ouro" \
+                "$C_GREEN$C_BOLD" "$C_RESET" "$prata")"
+            if [ -n "$_cbt" ]; then
+                ATIV="${ATIV}$(printf '     %b%s%b  %b▸%b  %b%s%b  %b%s%b\n' \
+                    "$C_WHITE" "$nome" "$C_RESET" "$C_DIM" "$C_RESET" \
+                    "$C_CYAN" "$_aba" "$C_RESET" "$_cor_c" "$_cbt" "$C_RESET")"
+            else
+                ATIV="${ATIV}$(printf '     %b%s%b  %b▸%b  %b%s%b\n' \
+                    "$C_WHITE" "$nome" "$C_RESET" "$C_DIM" "$C_RESET" \
+                    "$C_CYAN" "$_aba" "$C_RESET")"
             fi
         fi
     done 3< "$ACCOUNTS_FILE"
 
     if [ "${PANEL_DRAW:-$HAS_TTY}" = 1 ]; then
-        # ============================================================
-        # DRAGONS — apresentação limpa e responsiva
-        # ============================================================
-        if [ "$ESTREITO" = 1 ]; then
-            printf "%b🐉 DRAGONS%b  %bTWM MULTI-CONTAS%b\n" \
-                "$C_GREEN$C_BOLD" "$C_RESET" "$C_WHITE$C_BOLD" "$C_RESET"
-            printf "%b%s%b  •  %s conta(s)  •  %b%s%b\n" \
-                "$C_GRAY" "$tag" "$C_RESET" "$n" "$C_GRAY" "$agora" "$C_RESET"
+        painel_regua "$LARG"
+        # O relogio e alinhado a direita pela largura real, nao por um
+        # recuo fixo de 26 espacos que so servia para uma tela de 68.
+        _tit="  TWM Multi-contas · BR"
+        _pad=$((LARG - ${#_tit} - ${#agora} - 1))
+        [ "$_pad" -lt 1 ] && _pad=1
+        printf "  %b%sTWM Multi-contas%b %b· BR%b%*s%b%s%b\n" \
+               "$C_CYAN$C_BOLD" "$I_TIT" "$C_RESET" "$C_DIM" "$C_RESET" \
+               "$_pad" '' "$C_WHITE" "$agora" "$C_RESET"
+        painel_regua "$LARG"
+        printf "%b" "$LISTA"
+        painel_regua "$LARG"
 
-            printf "\n%b⚔️  CONTAS EM CAMPO%b\n" "$C_GREEN$C_BOLD" "$C_RESET"
-            printf "%b%s%b" "$C_WHITE" "$LISTA" "$C_RESET"
-
-            printf "\n%b━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%b\n" "$C_RED" "$C_RESET"
-            printf "%b📊  RESUMO%b\n" "$C_GREEN$C_BOLD" "$C_RESET"
-            printf "   %b🟢 Online%b     %s\n" "$C_GREEN$C_BOLD" "$C_RESET" "$n_on"
-            printf "   %b🟡 Subindo%b    %s\n" "$C_YELLOW$C_BOLD" "$C_RESET" "$n_up"
-            printf "   %b🔴 Fora%b       %s\n" "$C_RED$C_BOLD" "$C_RESET" "$n_off"
-
-            printf "\n%b⚔️  PRÓXIMA BATALHA%b\n" "$C_RED$C_BOLD" "$C_RESET"
-            printf "   %b%s%b\n" "$C_GREEN$C_BOLD" "$(proximo_evento)" "$C_RESET"
-
-            if [ "$n_off" -gt 0 ] && [ "${PANEL_SUPERVISE:-0}" != "1" ]; then
-                printf "\n%b⚠  %s conta(s) fora do ar%b\n" "$C_RED$C_BOLD" "$n_off" "$C_RESET"
-            fi
-            printf "\n%b🐉 DRAGONS%b  •  atualização a cada %ss\n" \
-                "$C_GREEN$C_BOLD" "$C_RESET" "${PANEL_INTERVAL:-20}"
-        else
-            printf "%b🐉 DRAGONS%b   %bTWM MULTI-CONTAS%b   %b%s%b\n" \
-                "$C_GREEN$C_BOLD" "$C_RESET" "$C_WHITE$C_BOLD" "$C_RESET" "$C_GRAY" "$agora" "$C_RESET"
-            printf "%b%s%b  •  %s conta(s) em campo\n" "$C_GRAY" "$tag" "$C_RESET" "$n"
-
-            printf "\n%b⚔️  CONTAS EM CAMPO%b\n" "$C_GREEN$C_BOLD" "$C_RESET"
-            printf "%b%s%b" "$C_WHITE" "$LISTA" "$C_RESET"
-
-            printf "\n%b━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%b\n" "$C_RED" "$C_RESET"
-            printf "%b📊  RESUMO%b    %b🟢 Online %s%b    %b🟡 Subindo %s%b    %b🔴 Fora %s%b\n" \
-                "$C_GREEN$C_BOLD" "$C_RESET" "$C_GREEN$C_BOLD" "$n_on" "$C_RESET" \
-                "$C_YELLOW$C_BOLD" "$n_up" "$C_RESET" "$C_RED$C_BOLD" "$n_off" "$C_RESET"
-
-            printf "\n%b⚔️  PRÓXIMA BATALHA%b\n" "$C_RED$C_BOLD" "$C_RESET"
-            printf "   %b%s%b\n" "$C_GREEN$C_BOLD" "$(proximo_evento)" "$C_RESET"
-
-            if [ -n "$ATIV" ]; then
-                printf "\n%b📋  ATIVIDADE%b\n" "$C_GREEN$C_BOLD" "$C_RESET"
-                printf "%b%s%b" "$C_WHITE" "$ATIV" "$C_RESET"
-            fi
-            if [ "${PANEL_SUPERVISE:-0}" != "1" ]; then
-                printf "\n%bSomente leitura%b  •  Ctrl+C sai sem parar as contas\n" "$C_GRAY" "$C_RESET"
-            fi
-            if [ "$n_off" -gt 0 ] && [ "${PANEL_SUPERVISE:-0}" != "1" ]; then
-                printf "%b⚠  %s conta(s) fora do ar — use ./play.sh%b\n" "$C_RED$C_BOLD" "$n_off" "$C_RESET"
-            fi
-            printf "\n%b🐉 DRAGONS%b  •  atualização a cada %ss\n" \
-                "$C_GREEN$C_BOLD" "$C_RESET" "${PANEL_INTERVAL:-20}"
+        # Numa tela estreita a aba ja vai junto do nome, entao a secao
+        # separada seria so uma repeticao dos mesmos seis nomes.
+        if [ "$ESTREITO" != 1 ]; then
+            printf "  %b%sATIVIDADE EM CONJUNTO%b\n" "$C_CYAN$C_BOLD" "$I_ACT" "$C_RESET"
+            printf "%b" "$ATIV"
+            painel_regua "$LARG"
         fi
+
+        # O contador e o proximo evento so cabem na MESMA linha a partir de
+        # 100 colunas. Abaixo disso vao em duas — a versao anterior somava
+        # 100 caracteres fixos e quebrava em qualquer tela menor.
+        if [ "$LARG" -ge 100 ]; then
+            printf "  %b%s %s online%b  %b%s %s subindo%b  %b%s %s parada(s)%b   %b%sProximo: %s%b\n" \
+                   "$C_GREEN" "$S_ON" "$n_on" "$C_RESET" \
+                   "$C_YELLOW" "$S_WAIT" "$n_up" "$C_RESET" \
+                   "$C_RED" "$S_ERR" "$n_off" "$C_RESET" \
+                   "$C_YELLOW" "$I_EVT" "$(proximo_evento)" "$C_RESET"
+        else
+            if [ "$ESTREITO" = 1 ]; then
+                printf "  %b%s %s%b  %b%s %s%b  %b%s %s%b\n" \
+                       "$C_GREEN" "$S_ON" "$n_on" "$C_RESET" \
+                       "$C_YELLOW" "$S_WAIT" "$n_up" "$C_RESET" \
+                       "$C_RED" "$S_ERR" "$n_off" "$C_RESET"
+            else
+                printf "  %b%s %s online%b  %b%s %s subindo%b  %b%s %s parada(s)%b\n" \
+                       "$C_GREEN" "$S_ON" "$n_on" "$C_RESET" \
+                       "$C_YELLOW" "$S_WAIT" "$n_up" "$C_RESET" \
+                       "$C_RED" "$S_ERR" "$n_off" "$C_RESET"
+            fi
+            # Truncado na largura: numa tela muito estreita o nome do evento
+            # sozinho ja passa da borda.
+            printf "  %b%s%.*s%b\n" "$C_YELLOW" "$I_EVT" \
+                   "$((LARG - 2))" "$(proximo_evento)" "$C_RESET"
+        fi
+
+        # Aviso curto no celular; a frase longa quebrava em duas linhas.
+        if [ "${PANEL_SUPERVISE:-0}" != "1" ]; then
+            if [ "$LARG" -lt 44 ]; then
+                _msg="somente leitura"
+            elif [ "$ESTREITO" = 1 ]; then
+                _msg="somente leitura — ctrl+c nao para nada"
+            else
+                _msg="somente leitura — nao interfere nas contas; ctrl+c sai sem parar nada"
+            fi
+            printf "  %b%.*s%b\n" "$C_DIM" "$((LARG - 2))" "$_msg" "$C_RESET"
+        fi
+
+        # Quantas contas precisam de atencao, e o que fazer.
+        if [ "$n_off" -gt 0 ] && [ "${PANEL_SUPERVISE:-0}" != "1" ]; then
+            if [ "$LARG" -lt 50 ]; then
+                _msg="$n_off fora do ar - rode ./play.sh"
+            else
+                _msg="$n_off conta(s) fora do ar — suba com: ./play.sh"
+            fi
+            printf "  %b%.*s%b\n" "$C_RED" "$((LARG - 2))" "$_msg" "$C_RESET"
+        fi
+        painel_regua "$LARG"
     fi
 
     # CORRECAO: eram 20 chamadas de "sleep 1" a cada volta do painel, ou

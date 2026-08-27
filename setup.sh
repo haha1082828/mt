@@ -93,35 +93,29 @@ server_scheme() { echo "https"; }
 
 show_menu() {
     clear
-    _L="--------------------------------------------------------------------"
-    # Reavalia a cada abertura: o arquivo pode ter acabado de ser criado
-    # por "Adicionar conta" ou esvaziado por "Remover conta".
+    _L="────────────────────────────────────────────────────────────────────"
     ACCOUNTS_FILE=$(resolve_accounts_file)
     n=0
     [ -f "$ACCOUNTS_FILE" ] && n=$(grep -c -E '^[0-9]+[|]' "$ACCOUNTS_FILE" 2>/dev/null)
     case "$n" in ''|*[!0-9]*) n=0 ;; esac
-
-    printf "%b%s%b\n" "$A2" "$_L" "$RESET"
-    printf "  %bTWM%b %b· Gerenciador de Contas%b%*s%bBR%b\n" \
-           "$A1" "$RESET" "$DIM" "$RESET" 26 '' "$WHITE" "$RESET"
-printf "  %bMod Author: Stephenn Curry%b\n" "$DIM" "$RESET"
-    printf "%b%s%b\n" "$A2" "$_L" "$RESET"
-    printf "  %bContas cadastradas:%b %b%s%b\n" "$DIM" "$RESET" "$WHITE" "$n" "$RESET"
-    # O caminho e impresso sempre: um "0" sem o arquivo ao lado nao permite
-    # distinguir "nenhuma conta" de "estou lendo o arquivo errado".
-    printf "  %bArquivo:%b %b%s%b\n\n" "$DIM" "$RESET" "$DIM" "$ACCOUNTS_FILE" "$RESET"
-    printf "   %b1%b  Listar contas\n"   "$A1" "$RESET"
-    printf "   %b2%b  Adicionar conta\n" "$A1" "$RESET"
-    printf "   %b3%b  Remover conta\n"   "$A1" "$RESET"
-    printf "   %b4%b  Testar login\n\n"  "$A1" "$RESET"
-    printf "   %b0%b  Sair\n"            "$DIM" "$RESET"
-    printf "%b%s%b\n" "$A2" "$_L" "$RESET"
-    printf "  %bOpcao:%b " "$WHITE" "$RESET"
+    printf "\033[1;91m╔════════════════════════════════════════════════════════════════════╗\033[0m\n"
+    printf "\033[1;92m║        /\_/\   D R A G O N S   ·   ACCOUNT FORGE            ║\033[0m\n"
+    printf "\033[1;92m║       ( o.o )   TWM MULTI · BR · %2s conta(s)                 ║\033[0m\n" "$n"
+    printf "\033[1;91m║        > ^ <    GERENCIADOR DO CLÃ                            ║\033[0m\n"
+    printf "\033[1;91m╚════════════════════════════════════════════════════════════════════╝\033[0m\n\n"
+    printf "  \033[1;92m◆ 1\033[0m  Listar contas\n"
+    printf "  \033[1;92m◆ 2\033[0m  Adicionar conta\n"
+    printf "  \033[1;92m◆ 3\033[0m  Remover conta\n"
+    printf "  \033[1;92m◆ 4\033[0m  Testar login\n\n"
+    printf "  \033[1;91m◆ 0\033[0m  Sair\n"
+    printf "\033[1;91m%s\033[0m\n" "$_L"
+    printf "  \033[1;97mOpção ▸ \033[0m"
 }
+
 
 list_accounts() {
     clear
-    printf "${CYAN}=== Contas cadastradas ===${RESET}\n\n"
+    printf "${CYAN}╔══════════════════════════════════════════════════╗${RESET}\n${CYAN}║              🐉 CONTAS · DRAGONS                ║${RESET}\n${CYAN}╚══════════════════════════════════════════════════╝${RESET}\n\n"
     if [ ! -f "$ACCOUNTS_FILE" ] || [ ! -s "$ACCOUNTS_FILE" ]; then
         printf "${RED}Nenhuma conta cadastrada ainda.${RESET}\n"
     else
@@ -148,7 +142,7 @@ ${CYAN}Servidor: BR - furiadetitas.net${RESET}
 
 add_account() {
     clear
-    printf "${CYAN}=== Adicionar conta ===${RESET}\n"
+    printf "${CYAN}╔══════════════════════════════════════════════════╗${RESET}\n${CYAN}║             🐉 NOVA CONTA · DRAGONS             ║${RESET}\n${CYAN}╚══════════════════════════════════════════════════╝${RESET}\n"
     show_servers
     srv=1
 
@@ -219,7 +213,7 @@ add_account() {
 
 remove_account() {
     clear
-    printf "${CYAN}=== Remover conta ===${RESET}\n\n"
+    printf "${CYAN}╔══════════════════════════════════════════════════╗${RESET}\n${CYAN}║              🔥 REMOVER · DRAGONS               ║${RESET}\n${CYAN}╚══════════════════════════════════════════════════╝${RESET}\n\n"
     [ ! -f "$ACCOUNTS_FILE" ] || [ ! -s "$ACCOUNTS_FILE" ] && \
         printf "${RED}Nenhuma conta.${RESET}\n" && sleep 2 && return
 
@@ -275,7 +269,7 @@ remove_account() {
 
 test_account() {
     clear
-    printf "${CYAN}=== Testar login ===${RESET}\n\n"
+    printf "${CYAN}╔══════════════════════════════════════════════════╗${RESET}\n${CYAN}║               ⚔ TESTE · DRAGONS                 ║${RESET}\n${CYAN}╚══════════════════════════════════════════════════╝${RESET}\n\n"
     [ ! -f "$ACCOUNTS_FILE" ] || [ ! -s "$ACCOUNTS_FILE" ] && \
         printf "${RED}Nenhuma conta.${RESET}\n" && sleep 2 && return
 

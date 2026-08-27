@@ -261,7 +261,6 @@ case "$total" in *[!0-9]*) total=0 ;; esac
 
 printf "${CYAN}TWM Multi-contas - %s conta(s) [%s]${RESET}\n" "$total" "$TOYBOX"
 printf "${GOLD}Contas:${RESET} %s\n" "$ACCOUNTS_FILE"
-printf "${GOLD}Mod Author:${RESET} Stephenn Curry\n\n"
 
 # Android 12+ derruba a sessao inteira com SIGKILL.
 #

@@ -25,41 +25,20 @@ C_CYAN='\033[1;36m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'
 C_RED='\033[1;31m';  C_MAG='\033[1;35m';   C_WHITE='\033[1;37m'
 C_GOLD='\033[0;33m'; C_GRAY='\033[0;37m';  C_BLUE='\033[1;34m'
 
-# Emoji ou ASCII.
-#
-# Muitos terminais (Windows Terminal sem fonte de emoji, consoles antigos)
-# desenham quadrados no lugar dos simbolos. Por isso o padrao e ASCII com
-# cor, que funciona em qualquer lugar. Para ligar os emoji:
-#     TWM_EMOJI=1 ./play.sh
-if [ "${TWM_EMOJI:-0}" = "1" ]; then
-    I_HP="❤️ "; I_EN="⚡ "; I_LV="⭐ "; I_GO="🪙 "; I_SI="🥈 "
-    I_TIT="🎮 "; I_ACT="📋 "; I_EVT="⏰ "; I_ARROW="▸"
-    S_ON="🟢"; S_WAIT="🟡"; S_ERR="🔴"; S_OFF="⚫"; S_UNK="⚪"; S_PAUSE="⏸️"
-    A_CLANFIGHT="🏆  Torneio do Clã";   A_ALTARES="🔥  Altares dos Deuses"
-    A_VALE="🌘  Vale dos Imortais";     A_REI="👑  Rei dos Imortais"
-    A_CLANCOL="🏛️  Coliseu do Clã";     A_MASMORRA="🗝️  Masmorra do Clã"
-    A_CLANQUEST="📜  Missões do Clã";   A_BANDEIRAS="🚩  Batalha de Bandeiras"
-    A_COLISEU="🏟️  Coliseu";            A_ARENA="⚔️  Arena"
-    A_CARREIRA="🎖️  Carreira";          A_CAVERNA="⛏️  Caverna"
-    A_CAMPANHA="🗺️  Campanha";          A_LIGA="🥇  Liga dos Favoritos"
-    A_TROCA="💱  Troca Prata/Ouro";     A_SABIO="🧙  Cabana do Sábio"
-    A_EVENTO="🎉  Evento Especial";     A_DESCANSO="💤  Descansando"
-    A_NONE="—"
-else
-    I_HP="HP"; I_EN="Eng"; I_LV="LV"; I_GO="Ouro"; I_SI="PR"
-    I_TIT=""; I_ACT=""; I_EVT=""; I_ARROW="->"
-    S_ON="[on]"; S_WAIT="[..]"; S_ERR="[off]"; S_OFF="[--]"; S_UNK="[??]"; S_PAUSE="[||]"
-    A_CLANFIGHT="Torneio do Clã";   A_ALTARES="Altares dos Deuses"
-    A_VALE="Vale dos Imortais";     A_REI="Rei dos Imortais"
-    A_CLANCOL="Coliseu do Clã";     A_MASMORRA="Masmorra do Clã"
-    A_CLANQUEST="Missões do Clã";   A_BANDEIRAS="Batalha de Bandeiras"
-    A_COLISEU="Coliseu";            A_ARENA="Arena"
-    A_CARREIRA="Carreira";          A_CAVERNA="Caverna"
-    A_CAMPANHA="Campanha";          A_LIGA="Liga dos Favoritos"
-    A_TROCA="Troca Prata/Ouro";     A_SABIO="Cabana do Sábio"
-    A_EVENTO="Evento Especial";     A_DESCANSO="Descansando"
-    A_NONE="-"
-fi
+# Emoji sempre ativado (TEMA DRAGONS)
+I_HP="❤️ "; I_EN="⚡ "; I_LV="⭐ "; I_GO="🪙 "; I_SI="🥈 "
+I_TIT="🎮 "; I_ACT="⚔️ "; I_EVT="⌚ "; I_ARROW="▸"
+S_ON="🟢"; S_WAIT="🟡"; S_ERR="🔴"; S_OFF="⚫"; S_UNK="⚪"; S_PAUSE="⏸️"
+A_CLANFIGHT="🏆  Torneio do Clã";   A_ALTARES="🔥  Altares dos Deuses"
+A_VALE="🌘  Vale dos Imortais";     A_REI="👑  Rei dos Imortais"
+A_CLANCOL="🏛️  Coliseu do Clã";     A_MASMORRA="🗝️  Masmorra do Clã"
+A_CLANQUEST="📜  Missões do Clã";   A_BANDEIRAS="🚩  Batalha de Bandeiras"
+A_COLISEU="🏟️  Coliseu";            A_ARENA="⚔️  Arena"
+A_CARREIRA="🎖️  Carreira";          A_CAVERNA="⛏️  Caverna"
+A_CAMPANHA="🗺️  Campanha";          A_LIGA="🥇  Liga dos Favoritos"
+A_TROCA="💱  Troca Prata/Ouro";     A_SABIO="🧙  Cabana do Sábio"
+A_EVENTO="🎉  Evento Especial";     A_DESCANSO="💤  Descansando"
+A_NONE="—"
 
 # Largura do terminal.
 #
@@ -321,6 +300,10 @@ combate_de() {
 }
 
 painel_loop() {
+# Definindo uma quebra de linha real (o command substitution $() engole o \n do final)
+NL='
+'
+
 while true; do
     [ -t 1 ] && [ "${PANEL_ONCE:-0}" != "1" ] && clear
     agora=$(date +%H:%M:%S)
@@ -427,60 +410,54 @@ while true; do
             *) _estado="?" ;;
         esac
 
-        # Espaço entre contas para legibilidade
-        [ "$idx" -gt 1 ] && LISTA="${LISTA}$(printf '\n')"
+        # Espaço entre contas
+        [ "$idx" -gt 1 ] && LISTA="${LISTA}${NL}"
 
-        # Cabecalho da conta: indice + nome + estado.
-        LISTA="${LISTA}$(printf '%b┌─ %b[%d] %-*.*s%b %s %b─┐%b\n' \
-            "$cor" "$C_WHITE" "$idx" "$((_iw - 6))" "$((_iw - 6))" "$nome" "$C_RESET" "$_estado" "$cor" "$C_RESET")"
+        # Linha 1: Emoji status + [n] Nome + Estado
+        LISTA="${LISTA}$(printf '%b%s [%d] %b%-20.*s%b %s%b' \
+            "$cor" "$sim" "$idx" "$C_WHITE" "20" "$nome" "$C_RESET" "$_estado" "$C_RESET")${NL}"
 
-        # Linha de atributos. Em telas estreitas ela quebra em dois blocos
-        # fixos, em vez de tentar manter cinco colunas na mesma linha.
-        if [ "$LARG" -lt 60 ]; then
-            _stats1="$I_HP $hp   $I_EN $ene   $I_LV $lvl"
-            _stats2="$I_GO $ouro   $I_SI $prata"
-            LISTA="${LISTA}$(printf '%b│ %b%-*.*s%b │%b\n' \
-                "$C_GRAY" "$C_WHITE" "$_iw" "$_iw" "$_stats1" "$C_RESET" "$cor" "$C_RESET")"
-            LISTA="${LISTA}$(printf '%b│ %b%-*.*s%b │%b\n' \
-                "$C_GRAY" "$C_WHITE" "$_iw" "$_iw" "$_stats2" "$C_RESET" "$cor" "$C_RESET")"
-        else
-            _stats1="$I_HP $hp   $I_EN $ene   $I_LV $lvl   $I_GO $ouro   $I_SI $prata"
-            LISTA="${LISTA}$(printf '%b│ %b%-*.*s%b │%b\n' \
-                "$C_GRAY" "$C_WHITE" "$_iw" "$_iw" "$_stats1" "$C_RESET" "$cor" "$C_RESET")"
+        # Linha 2: HP EN LV
+        LISTA="${LISTA}$(printf '%b%s %s   %s %s   %s %s%b' \
+            "$C_GRAY" "$I_HP" "$hp" "$I_EN" "$ene" "$I_LV" "$lvl" "$C_RESET")${NL}"
+
+        # Linha 3: OURO PR
+        LISTA="${LISTA}$(printf '%b%s %s   %s %s%b' \
+            "$C_GRAY" "$I_GO" "$ouro" "$I_SI" "$prata" "$C_RESET")${NL}"
+
+        # Linha 4: Página (sempre aparece)
+        LISTA="${LISTA}$(printf '%b📋 %s%b' "$C_CYAN" "$_aba" "$C_RESET")${NL}"
+
+        # Linha 5: Combate (se houver)
+        if [ -n "$_cbt" ]; then
+            LISTA="${LISTA}$(printf '%b⚔️  %s%b' "$_cor_c" "$_cbt" "$C_RESET")${NL}"
         fi
-
-        # Pagina atual e combate ficam juntos na ultima linha. Se houver
-        # combate, ele ganha prioridade visual sem alterar qualquer dado.
-        _info="$_aba"
-        [ -n "$_cbt" ] && _info="$_aba  |  $_cbt"
-        LISTA="${LISTA}$(printf '%b│ %b%-*.*s%b │%b\n' \
-            "$C_CYAN" "$C_WHITE" "$_iw" "$_iw" "$_info" "$C_RESET" "$cor" "$C_RESET")"
-        LISTA="${LISTA}$(printf '%b└─%*s─┘%b\n' "$cor" "$_iw" "" "$C_RESET")"
 
         # Mantem a secao de atividade para telas largas, como no painel
         # original. Nao e exibida dentro da caixa para nao duplicar nomes.
         if [ "$ESTREITO" != 1 ]; then
             if [ -n "$_cbt" ]; then
-                ATIV="${ATIV}$(printf '    %b%-18.18s %b%s %b%-22.22s %b%s%b\n' \
-                    "$C_WHITE" "$nome" "$C_DIM" "$I_ARROW" "$C_CYAN" "$_aba" "$_cor_c" "$_cbt" "$C_RESET")"
+                ATIV="${ATIV}$(printf '    %b%-18.18s %b%s %b%-22.22s %b%s%b' \
+                    "$C_WHITE" "$nome" "$C_DIM" "$I_ARROW" "$C_CYAN" "$_aba" "$_cor_c" "$_cbt" "$C_RESET")${NL}"
             else
-                ATIV="${ATIV}$(printf '    %b%-18.18s %b%s %b%s%b\n' \
-                    "$C_WHITE" "$nome" "$C_DIM" "$I_ARROW" "$C_CYAN" "$_aba" "$C_RESET")"
+                ATIV="${ATIV}$(printf '    %b%-18.18s %b%s %b%s%b' \
+                    "$C_WHITE" "$nome" "$C_DIM" "$I_ARROW" "$C_CYAN" "$_aba" "$C_RESET")${NL}"
             fi
         fi
     done 3< "$ACCOUNTS_FILE"
 
     if [ "${PANEL_DRAW:-$HAS_TTY}" = 1 ]; then
         painel_regua "$LARG"
-        # O relogio e alinhado a direita pela largura real, nao por um
-        # recuo fixo de 26 espacos que so servia para uma tela de 68.
-        _tit="  TWM Multi-contas · BR"
-        _pad=$((LARG - ${#_tit} - ${#agora} - 1))
+        # O relogio e alinhado a direita pela largura real.
+        # Ajuste fino: a contagem de caracteres do bash ignora a largura extra 
+        # dos emojis (🎮 e ⌚). Subtraimos 38 colunas para criar uma margem 
+        # perfeita e garantir que o relógio não quebre a linha.
+        _pad=$((LARG - 38))
         [ "$_pad" -lt 1 ] && _pad=1
-        printf "  %b%sTWM Multi-contas%b %b· BR%b%*s%b%s%b\n" \
+        printf "  %b%sTWM Multi-contas%b %b· BR%b%*s%b⌚ %s%b\n" \
                "$C_CYAN$C_BOLD" "$I_TIT" "$C_RESET" "$C_DIM" "$C_RESET" \
                "$_pad" '' "$C_WHITE" "$agora" "$C_RESET"
-        printf "  %bMod Author: Stephenn Curry%b\n" "$C_DIM" "$C_RESET"
+        printf "  %bDRAGONS 🐉%b\n" "$C_DIM" "$C_RESET"
         painel_regua "$LARG"
         printf "%b" "$LISTA"
         painel_regua "$LARG"

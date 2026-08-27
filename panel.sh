@@ -409,46 +409,67 @@ while true; do
             *)       _cor_c="$C_GREEN" ;;
         esac
 
-        if [ "$ESTREITO" = 1 ]; then
-            # Celular: cada conta em um bloco vertical, sem colunas espremidas.
-            LISTA="${LISTA}$(printf '%b[%02s]%b  %b%s%b  %b%s%b\n' \
-                "$C_RED$C_BOLD" "$idx" "$C_RESET" \
-                "$C_WHITE$C_BOLD" "$nome" "$C_RESET" \
-                "$cor" "$sim" "$C_RESET")"
-            LISTA="${LISTA}$(printf '     %bHP%b %-8s  %bEN%b %-7s  %bLV%b %s\n' \
-                "$C_GREEN$C_BOLD" "$C_RESET" "$hp" \
-                "$C_GREEN$C_BOLD" "$C_RESET" "$ene" \
-                "$C_GREEN$C_BOLD" "$C_RESET" "$lvl")"
-            LISTA="${LISTA}$(printf '     %bOURO%b %-10s  %bPR%b %s\n' \
-                "$C_GREEN$C_BOLD" "$C_RESET" "$ouro" \
-                "$C_GREEN$C_BOLD" "$C_RESET" "$prata")"
-            if [ -n "$_cbt" ]; then
-                LISTA="${LISTA}$(printf '     %b%s%b  •  %b%s%b\n' \
-                    "$C_GRAY" "$_aba" "$C_RESET" "$_cor_c" "$_cbt" "$C_RESET")"
-            else
-                LISTA="${LISTA}$(printf '     %b%s%b\n' \
-                    "$C_GRAY" "$_aba" "$C_RESET")"
-            fi
+        # Cada conta recebe uma caixa propria. O conteudo e montado em
+        # linhas independentes para que nenhum campo empurre o outro no
+        # Termux. A largura da caixa acompanha exatamente a largura da tela.
+        _bw=$((LARG - 2))
+        [ "$_bw" -lt 30 ] && _bw=30
+        _iw=$((_bw - 4))
+
+        # Estado fica sempre no mesmo ponto: nome e estado nao disputam
+        # espaco com HP/EN/LV/Ouro/PR.
+        case "$status" in
+            running) _estado="ON" ;;
+            paused) _estado="PAUSE" ;;
+            starting|loading|login_retry|restarting) _estado="UP" ;;
+            dead) _estado="OFF" ;;
+            stopped) _estado="STOP" ;;
+            *) _estado="?" ;;
+        esac
+
+        # Cabecalho da conta: indice + nome + estado.
+        _prefix="[$idx] "
+        _suffix=" [$_estado]"
+        _nw=$((_iw - ${#_prefix} - ${#_suffix}))
+        [ "$_nw" -lt 6 ] && _nw=6
+
+        LISTA="${LISTA}$(printf '%b+-%-*s-+%b\n' "$cor" "$_iw" "" "$C_RESET")"
+        LISTA="${LISTA}$(printf '%b| %b%-*.*s%b%*s %b|%b\n' \
+            "$cor" "$C_WHITE" "$_nw" "$_nw" "$_prefix$nome" "$C_RESET" \
+            "$(( ${#_suffix} ))" "$_suffix" "$cor" "$C_RESET")"
+
+        # Linha de atributos. Em telas estreitas ela quebra em dois blocos
+        # fixos, em vez de tentar manter cinco colunas na mesma linha.
+        if [ "$LARG" -lt 60 ]; then
+            _stats1="HP $hp   EN $ene   LV $lvl"
+            _stats2="OURO $ouro   PR $prata"
         else
-            # Tela larga: duas linhas por conta, com espaçamento fixo.
-            LISTA="${LISTA}$(printf '%b[%02s]%b  %b%-20.20s%b  %b%s%b\n' \
-                "$C_RED$C_BOLD" "$idx" "$C_RESET" \
-                "$C_WHITE$C_BOLD" "$nome" "$C_RESET" \
-                "$cor" "$sim" "$C_RESET")"
-            LISTA="${LISTA}$(printf '     %bHP%b %-8s  %bEN%b %-7s  %bLV%b %-5s  %bOURO%b %-9s  %bPR%b %s\n' \
-                "$C_GREEN$C_BOLD" "$C_RESET" "$hp" \
-                "$C_GREEN$C_BOLD" "$C_RESET" "$ene" \
-                "$C_GREEN$C_BOLD" "$C_RESET" "$lvl" \
-                "$C_GREEN$C_BOLD" "$C_RESET" "$ouro" \
-                "$C_GREEN$C_BOLD" "$C_RESET" "$prata")"
+            _stats1="HP $hp   EN $ene   LV $lvl   OURO $ouro"
+            _stats2="PR $prata"
+        fi
+
+        LISTA="${LISTA}$(printf '%b| %-*.*s |%b\n' \
+            "$C_GRAY" "$_iw" "$_iw" "$_stats1" "$C_RESET")"
+        LISTA="${LISTA}$(printf '%b| %-*.*s |%b\n' \
+            "$C_GRAY" "$_iw" "$_iw" "$_stats2" "$C_RESET")"
+
+        # Pagina atual e combate ficam juntos na ultima linha. Se houver
+        # combate, ele ganha prioridade visual sem alterar qualquer dado.
+        _info="$_aba"
+        [ -n "$_cbt" ] && _info="$_aba  |  $_cbt"
+        LISTA="${LISTA}$(printf '%b| %-*.*s |%b\n' \
+            "$C_CYAN" "$_iw" "$_iw" "$_info" "$C_RESET")"
+        LISTA="${LISTA}$(printf '%b+-%-*s-+%b\n' "$cor" "$_iw" "" "$C_RESET")"
+
+        # Mantem a secao de atividade para telas largas, como no painel
+        # original. Nao e exibida dentro da caixa para nao duplicar nomes.
+        if [ "$ESTREITO" != 1 ]; then
             if [ -n "$_cbt" ]; then
-                ATIV="${ATIV}$(printf '     %b%s%b  %b▸%b  %b%s%b  %b%s%b\n' \
-                    "$C_WHITE" "$nome" "$C_RESET" "$C_DIM" "$C_RESET" \
-                    "$C_CYAN" "$_aba" "$C_RESET" "$_cor_c" "$_cbt" "$C_RESET")"
+                ATIV="${ATIV}$(printf '    %b%-18.18s %b%s %b%-22.22s %b%s%b\n' \
+                    "$C_WHITE" "$nome" "$C_DIM" "$I_ARROW" "$C_CYAN" "$_aba" "$_cor_c" "$_cbt" "$C_RESET")"
             else
-                ATIV="${ATIV}$(printf '     %b%s%b  %b▸%b  %b%s%b\n' \
-                    "$C_WHITE" "$nome" "$C_RESET" "$C_DIM" "$C_RESET" \
-                    "$C_CYAN" "$_aba" "$C_RESET")"
+                ATIV="${ATIV}$(printf '    %b%-18.18s %b%s %b%s%b\n' \
+                    "$C_WHITE" "$nome" "$C_DIM" "$I_ARROW" "$C_CYAN" "$_aba" "$C_RESET")"
             fi
         fi
     done 3< "$ACCOUNTS_FILE"
@@ -463,6 +484,7 @@ while true; do
         printf "  %b%sTWM Multi-contas%b %b· BR%b%*s%b%s%b\n" \
                "$C_CYAN$C_BOLD" "$I_TIT" "$C_RESET" "$C_DIM" "$C_RESET" \
                "$_pad" '' "$C_WHITE" "$agora" "$C_RESET"
+        printf "  %bMod Author: Stephenn Curry%b\n" "$C_DIM" "$C_RESET"
         painel_regua "$LARG"
         printf "%b" "$LISTA"
         painel_regua "$LARG"

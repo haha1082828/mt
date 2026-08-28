@@ -1,3 +1,9 @@
+# Fúria de Titãs
+
+Bot para gerenciamento de múltiplas contas no **[Fúria de Titãs](https://furiadetitas.net)**.
+
+---
+
 ## Aviso
 
 O uso de automação pode contrariar os termos de serviço do jogo e levar ao **banimento das contas**. A utilização fica por sua própria responsabilidade.
@@ -10,50 +16,92 @@ Baixe o Termux **[pela F-Droid](https://f-droid.org/packages/com.termux/)**, poi
 
 ```bash
 pkg update && pkg upgrade -y
+```
+
+```bash
 pkg install git curl wget jq util-linux -y
+```
+
+```bash
 termux-wake-lock
+```
+
+```bash
 cd ~ && git clone https://github.com/haha1082828/mt.git && cd mt
-chmod +x ./*.sh
-sha256sum -c .integrity --quiet && echo "Scripts íntegros"
+```
+
+```bash
+sha256sum -c .integrity --quiet && echo "Scripts integros"
+```
+
+```bash
 ./setup.sh
+```
+
+```bash
 ./play.sh
 ```
 
-> Vá também em **Configurações → Bateria → Termux** e marque **"Sem restrições"**.
 
+> Vá também em **Configurações → Bateria → Termux** e marque **"Sem restrições"**.
 ---
 
 ## Instalação — WSL no Windows
 
 ```bash
 sudo apt update && sudo apt install -y git curl jq util-linux procps
+```
+
+```bash
 cd ~
-git clone https://github.com/Theoswd/mt.git && cd mt
-chmod +x ./*.sh
-sha256sum -c .integrity --quiet && echo "Scripts íntegros"
+```
+
+```bash
+git clone https://github.com/haha1082828/mt.git && cd mt
+```
+
+```bash
+sha256sum -c .integrity --quiet && echo "Scripts integros"
+```
+
+```bash
 ./setup.sh
+```
+
+```bash
 ./play.sh
 ```
 
+
 > **Evite instalar em `/mnt/c`.** Diretórios do Windows podem impedir que o Linux aplique as permissões corretamente, deixando o arquivo de credenciais exposto. Use `pwd` para conferir o caminho; ele deve começar por `/home/`.
 
-> Se quiser manter o processo ativo após fechar o terminal, utilize `tmux`: `sudo apt install -y tmux && tmux new -s twm`. Rode o `./play.sh` dentro da sessão e saia com **Ctrl+B** depois **D**. Para voltar: `tmux attach -t twm`.
-
+> Se quiser manter o processo ativo após fechar o terminal, utilize `tmux`. Rode o `./play.sh` dentro da sessão e saia com **Ctrl+B** depois **D**. Para voltar: `tmux attach -t twm`.
 ---
 
 ## Instalação — iSH (iPhone / iPad)
 
 ```bash
 apk update && apk add git curl jq tzdata bash
+```
+
+```bash
 cd ~ && git clone https://github.com/haha1082828/mt.git && cd mt
-chmod +x ./*.sh
-sha256sum -c .integrity --quiet && echo "Scripts íntegros"
+```
+
+```bash
+sha256sum -c .integrity --quiet && echo "Scripts integros"
+```
+
+```bash
 ./setup.sh
+```
+
+```bash
 ./play.sh
 ```
 
-> **Limitação do iOS:** os aplicativos podem ser suspensos quando ficam em segundo plano. Assim, o bot pode parar ao sair do iSH ou bloquear a tela. Para execução contínua, dê preferência ao Termux ou WSL.
 
+> **Limitação do iOS:** os aplicativos podem ser suspensos quando ficam em segundo plano. Assim, o bot pode parar ao sair do iSH ou bloquear a tela. Para execução contínua, dê preferência ao Termux ou WSL.
 ---
 
 ## Comandos disponíveis

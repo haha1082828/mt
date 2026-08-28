@@ -222,7 +222,7 @@ launch_worker() {
     if [ -f "$lw_pidf" ]; then
         lw_old=$(cat "$lw_pidf" 2>/dev/null)
         if [ "$FORCE_RESTART" != "1" ] && worker_vivo "$lw_old"; then
-            printf "   ${GREEN}ja rodando${RESET} (PID %s) - mantida\n" "$lw_old"
+            printf "   ${GREEN}🟢 ja rodando${RESET} (PID %s) - mantida\n" "$lw_old"
             unset lw_old
             return 2
         fi
@@ -247,7 +247,7 @@ launch_worker() {
 }
 
 if [ ! -f "$ACCOUNTS_FILE" ] || [ ! -s "$ACCOUNTS_FILE" ]; then
-    printf "${RED}Nenhuma conta cadastrada.${RESET}\n"
+    printf "${RED}🔴 Nenhuma conta cadastrada.${RESET}\n"
     printf "Execute: ${GOLD}./setup.sh${RESET}\n"
     exit 1
 fi
@@ -259,7 +259,7 @@ total=$(grep -c -E '^[0-9]+\|' "$ACCOUNTS_FILE" 2>/dev/null)
 case "$total" in *[!0-9]*) total=0 ;; esac
 [ -z "$total" ] && total=0
 
-printf "${CYAN}TWM Multi-contas - %s conta(s) [%s]${RESET}\n" "$total" "$TOYBOX"
+printf "${CYAN}🎮 TWM Multi-contas - %s conta(s) [%s]${RESET}\n" "$total" "$TOYBOX"
 # O caminho do accounts.conf so aparece quando NAO e o do proprio
 # repositorio. No uso normal e uma linha que nao informa nada — o arquivo
 # esta onde deveria. Fora do lugar, e a primeira coisa que se quer saber:
@@ -267,7 +267,7 @@ printf "${CYAN}TWM Multi-contas - %s conta(s) [%s]${RESET}\n" "$total" "$TOYBOX"
 # subir lendo um arquivo antigo de outra instalacao.
 [ "$ACCOUNTS_FILE" = "$TWMDIR/accounts.conf" ] || \
     printf "${GOLD}Contas:${RESET} %s\n" "$ACCOUNTS_FILE"
-printf "${GOLD}Mod Author:${RESET} Stephenn Curry\n\n"
+printf "${CYAN}DRAGONS 🐉${RESET}\n\n"
 
 # Android 12+ derruba a sessao inteira com SIGKILL.
 #
@@ -413,7 +413,7 @@ if [ "$n" -eq 0 ]; then
     exit 1
 fi
 
-printf "\n${GREEN}%s conta(s): %s iniciada(s), %s ja rodando.${RESET}\n\n" \
+printf "\n${GREEN}🟢 %s conta(s): %s iniciada(s), %s ja rodando.${RESET}\n\n" \
     "$n" "$((n - n_kept))" "$n_kept"
 
 # O numero de contas processadas tem de bater com o que o arquivo declara.

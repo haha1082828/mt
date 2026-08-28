@@ -1,20 +1,6 @@
 #!/bin/sh
-# panel.sh - Painel do TWM (biblioteca, nao roda sozinho)
-#
-# Compartilhado pelo play.sh e pelo status.sh. Por padrao e SOMENTE LEITURA:
-# desenha o que os workers escreveram em ~/.twm e nao toca em processo nenhum.
-#
-# O play.sh liga a supervisao com PANEL_SUPERVISE=1, que faz o laco relancar
-# worker morto. O status.sh deixa em 0 e por isso pode ser aberto e fechado a
-# vontade, sem derrubar conta nenhuma.
-#
-# Espera receber de quem sourceia: TWMDIR, STATUS_DIR, ACCOUNTS_FILE,
-# server_tag(), clean_field() e — so quando PANEL_SUPERVISE=1 — launch_worker().
+# panel.sh - Painel do TWM (Parte 1 de 2)
 
-# ============================================================
-#  PAINEL
-#  So faz sentido com terminal. Sob systemd (ou qualquer转化)
-# ============================================================
 if [ -t 1 ]; then HAS_TTY=1; else HAS_TTY=0; fi
 
 # Cores
@@ -228,6 +214,8 @@ ler_arq() {
     return 0
 }
 
+# panel.sh - Painel do TWM (Parte 2 de 2)
+
 estado_cor() {
     case "$1" in
         running)                                echo "$C_GREEN" ;;
@@ -399,7 +387,6 @@ PANEL_LOG_LINHAS="${PANEL_LOG_LINHAS:-2}"
 case "$PANEL_LOG_LINHAS" in ''|*[!0-9]*) PANEL_LOG_LINHAS=2 ;; esac
 
 painel_loop() {
-# Quebra de linha real isolada (evita supressao do subshell)
 NL='
 '
 
@@ -457,23 +444,6 @@ while true; do
             esac
         fi
 
-        _sessao=""
-        _em_ev=0
-        ler_arq "$acc_dir/em_evento"; _eve="$_LIDO"
-        case "$_eve" in
-            ''|*[!0-9]*) ;;
-            *) if [ "$_agora_ep" -gt $((_eve - 600)) ] && \
-                  [ "$_agora_ep" -lt $((_eve + 900)) ]; then _em_ev=1; fi ;;
-        esac
-
-        ler_arq "$acc_dir/last_ok"; _ok="$_LIDO"
-        if [ "$_em_ev" = 0 ]; then
-            case "$_ok" in
-                ''|*[!0-9]*) [ "$status" = "running" ] && _sessao="sessao ?" ;;
-                *) [ $(( (_agora_ep - _ok) / 60 )) -gt 4 ] && _sessao="sessao caida" ;;
-            esac
-        fi
-
         case "$status" in
             running)     cor="$C_GREEN";  sim="$S_ON" ;;
             paused)      cor="$C_CYAN";   sim="$S_PAUSE" ;;
@@ -496,7 +466,6 @@ while true; do
             *)       _cor_c="$C_GREEN" ;;
         esac
 
-        # Coleta de batalhas ao vivo
         if [ -n "$_cbt" ]; then
             n_fight=$((n_fight + 1))
             _nw=14; _bw=16
@@ -510,7 +479,6 @@ while true; do
             fi
         fi
 
-        # Estado formatado
         case "$status" in
             running) _estado="ON" ;;
             paused) _estado="PAUSE" ;;
@@ -520,31 +488,23 @@ while true; do
             *) _estado="?" ;;
         esac
 
-        # MONTAGEM EM CAIXAS (FORMATO LIMPO DRAGONS)
         [ "$idx" -gt 1 ] && LISTA="${LISTA}${NL}"
 
-        # Linha 1: Emoji status + [n] Nome + Estado
         LISTA="${LISTA}$(printf '%b%s [%d] %b%-20.*s%b %s%b' \
             "$cor" "$sim" "$idx" "$C_WHITE" "20" "$nome" "$C_RESET" "$_estado" "$C_RESET")${NL}"
 
-        # Linha 2: HP EN LV
         LISTA="${LISTA}$(printf '%b%s %s   %s %s   %s %s%b' \
             "$C_GRAY" "$I_HP" "$hp" "$I_EN" "$ene" "$I_LV" "$lvl" "$C_RESET")${NL}"
 
-        # Linha 3: OURO PR
         LISTA="${LISTA}$(printf '%b%s %s   %s %s%b' \
             "$C_GRAY" "$I_GO" "$ouro" "$I_SI" "$prata" "$C_RESET")${NL}"
 
-        # Linha 4: Página + avisos extras de sessão
-        if [ -n "$_sessao" ]; then
-            LISTA="${LISTA}$(printf '%b📋 %s  %b(%s)%b' "$C_CYAN" "$_aba" "$C_RED" "$_sessao" "$C_RESET")${NL}"
-        elif [ -n "$_velho" ]; then
+        if [ -n "$_velho" ]; then
             LISTA="${LISTA}$(printf '%b📋 %s  %b(parado %s)%b' "$C_CYAN" "$_aba" "$C_YELLOW" "$_velho" "$C_RESET")${NL}"
         else
             LISTA="${LISTA}$(printf '%b📋 %s%b' "$C_CYAN" "$_aba" "$C_RESET")${NL}"
         fi
 
-        # Linha 5: Combate (se houver)
         if [ -n "$_cbt" ]; then
             LISTA="${LISTA}$(printf '%b⚔️  %s%b' "$_cor_c" "$_cbt" "$C_RESET")${NL}"
         fi
@@ -563,7 +523,6 @@ while true; do
         printf "%b" "$LISTA"
         painel_regua "$LARG"
 
-        # AO VIVO DAS BATALHAS
         if [ "$n_fight" -gt 0 ]; then
             printf "  %b%sAO VIVO — BATALHAS (%s)%b\n" \
                 "$C_RED$C_BOLD" "$I_LIVE" "$n_fight" "$C_RESET"
@@ -571,7 +530,6 @@ while true; do
             painel_regua "$LARG"
         fi
 
-        # Rodapé
         if [ "$LARG" -ge 100 ]; then
             printf "  %b%s %s online%b  %b%s %s subindo%b  %b%s %s parada(s)%b   %b%s%s%b\n" \
                    "$C_GREEN" "$S_ON" "$n_on" "$C_RESET" \

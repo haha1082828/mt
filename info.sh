@@ -253,6 +253,52 @@ fetch_page() {
     return 0
 }
 
+# A sessao esta viva: carimba a hora da ultima confirmacao.
+#
+# POR QUE ISTO EXISTE
+#
+# Quem escrevia o last_ok era so o descansar(), no fim de cada ciclo. Dentro
+# de um evento o ciclo nao termina: o modulo entra em 15:55, espera ate as
+# 16:00 num laco de sleep e so entao luta, com teto de 600s. Sao dez, quinze
+# minutos sem passar pelo descanso — e o painel, que cobra confirmacao a
+# cada 4 minutos, anunciava "sessao caida" em praticamente todo evento, com
+# a conta lutando normalmente.
+#
+# Nao da para chamar o descansar ali: ele volta para a Home e ABANDONARIA a
+# batalha. Mas a confirmacao ja existe de graca dentro da luta: a pagina de
+# combate so responde com o link de golpe para quem esta logado. Onde o
+# modulo reconhece esse link, a sessao esta provada — e e so carimbar.
+sessao_marcar() { date +%s > "$TMP/last_ok" 2>/dev/null; }
+
+# Primeiro link de ACAO de um evento, preferindo o que tem nonce (?r=N).
+#
+# CORRECAO (conta abandonando o evento): os modulos extraiam o link com uma
+# alternacao do tipo
+#     /altars(/[A-Za-z]+/?r=[0-9]+|/)
+# cujo segundo ramo casa o caminho NU "/altars/". Como "/altars/" aparece em
+# qualquer link da pagina e o "sed -n 1p" pega a primeira ocorrencia, o
+# ACCESS virava quase sempre o caminho nu — nunca o link de dodge/ataque.
+#
+# O laco de entrada espera justamente por "dodge" nesse arquivo, entao ele
+# nunca era satisfeito: a conta queimava o tempo limite, entrava no laco de
+# luta sem estar na luta, via "Battle over" na primeira volta e voltava para
+# a rotina comum. No painel isso aparece como a conta trocando o evento por
+# "Cla" no meio do horario — abandonando o evento.
+#
+# Aqui o link com nonce tem prioridade; o caminho nu so e devolvido quando
+# nao existe nenhuma acao disponivel, que e a informacao verdadeira.
+link_acao() {
+    _la_f="$1"; _la_p="$2"
+    [ -r "$_la_f" ] || { printf ''; unset _la_f _la_p; return 1; }
+    _la=`grep -o -E "/${_la_p}/[A-Za-z]+/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+" "$_la_f" 2>/dev/null | sed -n 1p`
+    # Link com nonce so aparece em pagina logada: serve de confirmacao.
+    [ -n "$_la" ] && sessao_marcar
+    [ -n "$_la" ] || _la=`grep -o -E "/${_la_p}/" "$_la_f" 2>/dev/null | sed -n 1p`
+    printf '%s' "$_la"
+    unset _la_f _la_p _la
+    return 0
+}
+
 hpmp() {
     if echo "$@" | grep -q '\-fix'; then
         (
@@ -311,13 +357,28 @@ parse_status() {
     _pg="$1"
     [ -n "$_pg" ] || return 1
 
-    ACC_HP=`printf '%s' "$_pg" | grep -o -E "health\.png' alt='hp'/> <span[^>]*>[0-9]{1,9}" | grep -o -E '[0-9]{1,9}$' | head -n1`
-    ACC_MP=`printf '%s' "$_pg" | grep -o -E "mana\.png' alt='mp'/>[^0-9<]{0,4}[0-9]{1,9}" | grep -o -E '[0-9]{1,9}$' | head -n1`
-    ACC_LVL=`printf '%s' "$_pg" | grep -o -E "level\.png' alt='[^']*'/> ?[0-9]{1,4}" | grep -o -E '[0-9]{1,4}$' | head -n1`
+    # DISTANCIA LIVRE ENTRE O ICONE E O NUMERO.
+    #
+    # CORRECAO (energia mostrando so o teto): entre o icone e o valor o jogo
+    # intercala tags e espacos —
+    #     <img src='/images/icon/mana.png' alt='mp'/> <span class='white'>809</span>
+    # e o seletor do MP exigia o numero a no maximo 4 caracteres do icone e
+    # PROIBIA "<" no meio. Qualquer <span> ali zerava a leitura. Com o ACC_MP
+    # vazio, o campo de energia caia no unico valor que restava — o teto, do
+    # /train —, e era esse que aparecia no painel. O do HP ja tolerava um
+    # <span>, e por isso o HP funcionava e a energia nao.
+    #
+    # Agora todos usam a mesma regra: ate 40 caracteres entre o marcador e o
+    # numero, contanto que nenhum deles seja digito. Como "[^0-9]" nao casa
+    # digito, o numero capturado e sempre o PRIMEIRO depois do icone — a
+    # folga nao deixa o seletor pular para um numero vizinho.
+    ACC_HP=`printf '%s' "$_pg" | grep -o -E "health\.png' alt='hp'/>[^0-9]{0,40}[0-9]{1,9}" | grep -o -E '[0-9]{1,9}$' | head -n1`
+    ACC_MP=`printf '%s' "$_pg" | grep -o -E "mana\.png' alt='mp'/>[^0-9]{0,40}[0-9]{1,9}" | grep -o -E '[0-9]{1,9}$' | head -n1`
+    ACC_LVL=`printf '%s' "$_pg" | grep -o -E "level\.png' alt='[^']*'/>[^0-9]{0,40}[0-9]{1,4}" | grep -o -E '[0-9]{1,4}$' | head -n1`
 
     # Ouro e prata: guarda o texto como o jogo mostra (pode vir "408,1M").
-    ACC_GOLD=`printf '%s' "$_pg" | grep -o -E "gold\.png' alt='g'/> ?[0-9][0-9.,']{0,14}[KMBkmb]?" | sed -E "s@.*/> ?@@" | head -n1`
-    ACC_SILVER=`printf '%s' "$_pg" | grep -o -E "silver\.png' alt='s'/> ?[0-9][0-9.,']{0,14}[KMBkmb]?" | sed -E "s@.*/> ?@@" | head -n1`
+    ACC_GOLD=`printf '%s' "$_pg" | grep -o -E "gold\.png' alt='g'/>[^0-9]{0,40}[0-9][0-9.,']{0,14}[KMBkmb]?" | grep -o -E "[0-9][0-9.,']{0,14}[KMBkmb]?$" | head -n1`
+    ACC_SILVER=`printf '%s' "$_pg" | grep -o -E "silver\.png' alt='s'/>[^0-9]{0,40}[0-9][0-9.,']{0,14}[KMBkmb]?" | grep -o -E "[0-9][0-9.,']{0,14}[KMBkmb]?$" | head -n1`
 
     NOWHP="$ACC_HP"; NOWMP="$ACC_MP"
 
@@ -327,10 +388,38 @@ parse_status() {
         HPPER=""
     fi
 
+    # ENERGIA: ATUAL / TETO.
+    #
+    # CORRECAO (o painel mostrava sempre o teto). Havia dois numeros e o bot
+    # exibia o errado:
+    #
+    #   ACC_ENE  vem de /train  ("Energia: 2109")  -> e o TETO, praticamente
+    #                                                 fixo para a conta
+    #   ACC_MP   vem do cabecalho da pagina        -> e o valor que MUDA:
+    #            (mana.png alt='mp')                  cai quando a arena gasta
+    #                                                 e sobe com a regeneracao
+    #
+    # O campo de energia do painel recebia o ACC_ENE, e o ACC_MP era lido e
+    # descartado — o painel nem chegava a exibi-lo. Resultado: uma conta com
+    # 231 de energia aparecia com 2109, que e o teto dela.
+    #
+    # Agora o campo traz os dois, no formato "atual/teto" (ex.: 809/2109),
+    # que e como o proprio jogo apresenta. Quando so um dos dois e conhecido,
+    # mostra o que houver, sem inventar o outro.
+    _ene_campo="-"
+    if [ -n "$ACC_MP" ] && [ -n "$ACC_ENE" ]; then
+        _ene_campo="${ACC_MP}/${ACC_ENE}"
+    elif [ -n "$ACC_MP" ]; then
+        _ene_campo="$ACC_MP"
+    elif [ -n "$ACC_ENE" ]; then
+        _ene_campo="$ACC_ENE"
+    fi
+
     printf '%s|%s|%s|%s|%s|%s|%s|%s\n' \
-        "${ACC:-$TWM_USER}" "${ACC_HP:--}" "${ACC_MP:--}" "${ACC_ENE:--}" \
+        "${ACC:-$TWM_USER}" "${ACC_HP:--}" "${ACC_MP:--}" "$_ene_campo" \
         "${ACC_LVL:--}" "${ACC_GOLD:--}" "${ACC_SILVER:--}" "$(date +%s)" \
         > "$TMP/stats" 2>/dev/null
+    unset _ene_campo
 
     unset _pg
 }
@@ -338,11 +427,38 @@ parse_status() {
 # Dados que so existem na pagina /train: HP maximo e energia.
 # Uma requisicao por ciclo de start(), nao por minuto.
 fetch_train_stats() {
+    # ENERGIA ZERADA ANTES DE LER.
+    #
+    # CORRECAO (painel mostrando energia de horas atras): quando o /train nao
+    # respondia — rede oscilando, timeout, sessao caida — a funcao devolvia 1
+    # no "[ -n "$_t" ] || return 1" abaixo e o ACC_ENE CONTINUAVA com o valor
+    # da ultima leitura boa. Como o worker e um unico processo que vive por
+    # dias, essa variavel ficava presa: uma conta com 231 de energia aparecia
+    # no painel com 2115, o valor lido no boot, indefinidamente.
+    #
+    # Zerando aqui, uma leitura que falha resulta em "-" no painel — que e
+    # honesto (nao sabemos) em vez de errado (numero congelado). O aviso de
+    # "numeros parados" do painel cobre o resto.
+    #
+    # O FIXHP recebe tratamento diferente de proposito: ele e o HP MAXIMO, que
+    # so muda quando a conta sobe de nivel. O ultimo valor conhecido continua
+    # valido, entao mante-lo nao mente — e evita perder o percentual de HP a
+    # cada oscilacao de rede. Os dois usos dele ja sao protegidos por
+    # [ -n "$FIXHP" ].
+    ACC_ENE=""
+
     _t=`run_curl "${URL}/train" 2>/dev/null`
     [ -n "$_t" ] || return 1
     FIXHP=`printf '%s' "$_t" | grep -o -E '\([0-9]{1,9}\)' | head -n1 | tr -d '()'`
-    ACC_ENE=`printf '%s' "$_t" | grep -o -E "Energia:? ?[0-9][0-9.,']{0,14}[KMBkmb]?" | sed -E 's@.*:? ?@@' | head -n1`
-    [ -z "$ACC_ENE" ] && ACC_ENE=`printf '%s' "$_t" | grep -o -E "Energia:? ?[0-9.,']{1,15}" | grep -o -E "[0-9.,']{1,15}$" | head -n1`
+    # CORRECAO (energia sempre vazia): o sed era `s@.*:? ?@@`. Como `:?` e ` ?`
+    # sao ambos opcionais, o `.*` guloso casava a string INTEIRA ("Energia:
+    # 2125") e a substituicao apagava tudo, devolvendo vazio. Sobrava so o
+    # fallback abaixo, que ainda perde o sufixo K/M ("2,1M" virava "2,1").
+    # Agora a remocao e ancorada no proprio rotulo, preservando o numero e o
+    # sufixo.
+    # Mesma regra do parse_status: o rotulo e o numero quase nunca estao
+    # colados no HTML cru — entre eles vem "</span> <span class='white'>".
+    ACC_ENE=`printf '%s' "$_t" | grep -o -E "Energia:?[^0-9]{0,40}[0-9][0-9.,']{0,14}[KMBkmb]?" | grep -o -E "[0-9][0-9.,']{0,14}[KMBkmb]?$" | head -n1`
     unset _t
 }
 
@@ -372,10 +488,28 @@ player_stats() {
 
 # Le a agenda oficial do jogo em /fights/ e grava em ~/.twm/agenda.
 #
-# A pagina traz contagem regressiva por evento ("Para iniciar: 10:12:03"),
-# confirmado comparando duas leituras espacadas: em 90 segundos o valor
-# caiu 1:31. Convertendo para horario absoluto, a agenda do jogo bate com
-# a do run.sh, que dispara de 2 a 5 minutos antes para preparar a entrada.
+# CORRECAO (a agenda oficial nunca era lida): este parser procurava
+# "Para iniciar: HH:MM:SS" e convertia a contagem regressiva para horario
+# absoluto. Esse texto NAO existe na pagina. O /fights/ real ("Cronograma de
+# batalhas") lista, sob cada evento, o HORARIO ABSOLUTO seguido de uma
+# descricao livre:
+#
+#   Vale dos Imortais
+#   10:00 BRT - Tempo para o inicio 1 hora
+#   16:00 BRT - Tempo para o inicio 7 horas
+#   Coliseu do cla
+#   10:30 BRT - Nova temporada comeca em 7 de Setembro
+#
+# Como nada casava, o arquivo saia vazio e o painel caia sempre na lista
+# fixa. A lista fixa esta correta, entao o defeito era silencioso — mas a
+# agenda do jogo nunca era de fato consultada, e uma mudanca de horario
+# passaria despercebida.
+#
+# Agora le o horario absoluto direto. Alem de ser o que a pagina mostra,
+# dispensa toda a aritmetica de contagem regressiva (e o `date -d` do GNU,
+# que o toybox do Android nao tem). A descricao apos o "-" e ignorada de
+# proposito: varia com o estado do evento ("Tempo para o inicio", "Nova
+# temporada comeca em...") e nao interessa para a agenda.
 #
 # Escreve uma linha por evento: HHMM|Nome
 # Uma requisicao por ciclo de start(), e o painel apenas le o arquivo.
@@ -396,46 +530,37 @@ atualiza_agenda() {
     _rawf="${_ag}.$$.raw"
     : > "$_tmpf"
 
+    # Nome do evento OU um horario absoluto "HH:MM BRT". O nome do fuso e
+    # aceito de forma generica (BRT/BRST/qualquer sigla) para o parser nao
+    # quebrar no horario de verao.
     printf '%s' "$_pg" \
         | sed 's/<br[^>]*>/\n/g; s/<\/div>/\n/g; s/<[^>]*>//g' \
-        | grep -oE "(Vale dos Imortais|Coliseu do clã|Torneio dos Clãs|Rei dos Imortais|Altares dos Deuses|Batalha de Bandeiras)|Para iniciar: [0-9]{1,2}:[0-9]{2}:[0-9]{2}" \
+        | grep -oE "(Vale dos Imortais|Coliseu do clã|Torneio dos Clãs|Rei dos Imortais|Altares dos Deuses|Batalha de Bandeiras)|[0-9]{1,2}:[0-9]{2} [A-Z]{2,5}" \
         > "$_rawf" 2>/dev/null
 
-    # CORRECAO 2 (portabilidade — este e o motivo de a agenda nunca
-    # aparecer no Termux): a conversao da contagem regressiva para horario
-    # absoluto era feita com `date -d "@epoch"`, que e EXTENSAO DO GNU
-    # coreutils. O toybox/busybox do Android nao aceita -d: a substituicao
-    # devolvia vazio e o arquivo saia com linhas "|Nome". Como o painel so
-    # testa se o arquivo tem conteudo, ele trocava a agenda fixa (correta)
-    # por essa lista sem horario. A conta agora e aritmetica pura, com o
-    # date usado apenas para ler a hora atual — o que funciona em qualquer
-    # implementacao.
+    # Um evento tem VARIOS horarios (o Vale tem tres), entao o nome vale ate
+    # aparecer o proximo nome — nao e limpo a cada horario, como fazia a
+    # versao de pares nome+contador. Horario sem nome antes e descartado.
     #
-    # CORRECAO 3 (pareamento): o "paste - -" assumia que todo nome vem
-    # seguido do seu contador. Um evento em andamento aparece SEM contador
-    # e desalinhava todos os horarios seguintes — cada evento herdava o
-    # horario do proximo. O laco abaixo so fecha um par quando o contador
-    # vem logo depois do nome, e descarta nome solto.
-    _nh=`date +%H | sed 's/^0//'`; [ -z "$_nh" ] && _nh=0
-    _nm=`date +%M | sed 's/^0//'`; [ -z "$_nm" ] && _nm=0
-    _ns=`date +%S | sed 's/^0//'`; [ -z "$_ns" ] && _ns=0
-    _base=$(( _nh * 3600 + _nm * 60 + _ns ))
-
-    _nome=""
     # Le de ARQUIVO, nao de pipe: num pipe o laco roda em subshell e o
     # "$_nome" guardado de uma volta para a outra se perderia.
+    _nome=""
     while IFS= read -r _ln; do
         case "$_ln" in
-            "Para iniciar: "*)
+            [0-9]*:[0-9]*)
                 [ -n "$_nome" ] || continue
-                _falta=${_ln#Para iniciar: }
-                _h=`printf %s "$_falta" | cut -d: -f1 | sed 's/^0//'`; [ -z "$_h" ] && _h=0
-                _m=`printf %s "$_falta" | cut -d: -f2 | sed 's/^0//'`; [ -z "$_m" ] && _m=0
-                _s=`printf %s "$_falta" | cut -d: -f3 | sed 's/^0//'`; [ -z "$_s" ] && _s=0
-                _abs=$(( (_base + _h * 3600 + _m * 60 + _s) % 86400 ))
-                printf '%02d%02d|%s\n' \
-                    $(( _abs / 3600 )) $(( _abs % 3600 / 60 )) "$_nome" >> "$_tmpf"
-                _nome=""
+                _h=${_ln%%:*}
+                _m=${_ln#*:}; _m=${_m%% *}
+                case "$_h$_m" in *[!0-9]*) continue ;; esac
+                # Zeros a esquerda removidos na mao: "$((10#$_h))" e um
+                # bashism — o dash recusa com "arithmetic expression" e o
+                # toybox do Android tambem, o que zeraria a agenda inteira no
+                # aparelho (mesma armadilha do `date -d` que ja quebrou este
+                # parser antes). Sem isto, "08" ainda seria lido como octal
+                # por varias implementacoes de printf.
+                while :; do case "$_h" in 0?*) _h=${_h#0} ;; *) break ;; esac; done
+                while :; do case "$_m" in 0?*) _m=${_m#0} ;; *) break ;; esac; done
+                printf '%02d%02d|%s\n' "$_h" "$_m" "$_nome" >> "$_tmpf"
                 ;;
             *)
                 _nome="$_ln"
@@ -455,7 +580,7 @@ atualiza_agenda() {
     else
         rm -f "$_tmpf"
     fi
-    unset _ag _pg _tmpf _rawf _nome _nh _nm _ns _base
+    unset _ag _pg _tmpf _rawf _nome _ln _h _m
 }
 
 # Converte "408,7M" / "12K" / "1.234" em numero inteiro.

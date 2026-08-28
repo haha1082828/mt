@@ -39,10 +39,10 @@ checkQuest() {
 
     case "$action" in
         apply)
-            click=`grep -o -E "/quest/(take|help)/$quest_id/\?r=[0-9]{8}" "$TMP/SRC" | sed -n '1p'`
+            click=`grep -o -E "/quest/take/$quest_id/[?]r=[0-9]+" "$TMP/SRC" | sed -n '1p'`
             ;;
         end)
-            click=`grep -o -E "/quest/(deleteHelp|end)/$quest_id/\?r=[0-9]{8}" "$TMP/SRC" | sed -n '1p'`
+            click=`grep -o -E "/quest/end/$quest_id/[?]r=[0-9]+" "$TMP/SRC" | sed -n '1p'`
             ;;
         *)
             return 1
@@ -50,57 +50,143 @@ checkQuest() {
     esac
 
     if [ -n "$click" ]; then
-        fetch_page "$click"
+        fetch_page "/clan/${CLD}${click}"
         return 0
     fi
 
     return 1
 }
 
-# Masmorra do Cla.
+# ============================================================
+#  MASMORRA DO CLA
 #
-# A versao anterior acessava /clan/<CLD>/dungeon/, URL que NAO existe no
-# jogo — por isso o log registrava "Clan Dungeon" dezenas de vezes e
-# nenhum ataque. A pagina real e /clandungeon/, e o ataque sai por
-# /clandungeon/attack/?r=N. A propria pagina informa:
-#   "10 acessos gratis disponiveis a cada 8 horas a partir das 10:00"
-# e mostra "Golpes mais: N" com os golpes restantes.
+# ERA A UNICA ATIVIDADE QUE NAO OLHAVA A PAGINA PARA DECIDIR.
+#
+# Todas as outras seguem a mesma regra: abre a pagina, procura o link de
+# acao, executa se ele estiver la. A masmorra fugia disso em dois pontos, e
+# os dois faziam a conta ficar parada com golpe disponivel no jogo:
+#
+#   1. O link de golpe era casado por um caminho FIXO,
+#      /clandungeon/attack/?r=N. Qualquer variacao — outro nome de secao,
+#      outro verbo — devolvia "sem ataque disponivel" com a pagina aberta
+#      na frente. Agora a leitura e frouxa, como no modulo de batalha do
+#      cla: serve qualquer /<secao>/attack/?r=N presente na pagina.
+#
+#   2. Quando nada era encontrado a funcao apenas desistia em silencio, e
+#      quem chamava marcava a janela como cumprida do mesmo jeito — a conta
+#      passava as 8 horas seguintes sem tentar de novo. Agora ela devolve
+#      0 SOMENTE quando um golpe saiu de verdade, e o agendador reabre em
+#      poucos minutos quando nao saiu.
+#
+# E quando mesmo assim nao houver link, a funcao IMPRIME NO LOG o que viu na
+# pagina. Sem isso o diagnostico exige estar com o aparelho na mao.
+# ============================================================
+
+# Link de golpe, procurado na pagina ja baixada.
+#
+# Deliberadamente generico: casa /clandungeon/attack/?r=N e qualquer
+# /<secao>/at(ta)k/?r=N que a pagina ofereca. Mesma leitura frouxa do
+# clandmg.sh, que funciona ha tempo.
+masmorra_golpe() {
+    # O caminho conhecido tem prioridade: se ele estiver na pagina, e ele que
+    # vale. A leitura frouxa e reserva, para nao ficar parado quando o nome da
+    # secao mudar — nunca para escolher outro link tendo o certo a mao.
+    _mg=`grep -o -E "/clandungeon/at[a-z]{0,3}k/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+" "$1" 2>/dev/null | sed -n 1p`
+    [ -n "$_mg" ] || _mg=`grep -o -E "/[a-z]{4,20}/at[a-z]{0,3}k/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+" "$1" 2>/dev/null | sed -n 1p`
+    printf '%s' "$_mg"
+    unset _mg
+}
+
+# O que a pagina tem, quando nao tem o golpe. So para o log.
+masmorra_dump() {
+    printf "Masmorra: sem link de golpe na pagina. O que veio:\n"
+    _mdz=`wc -c < "$1" 2>/dev/null`
+    printf "  tamanho: %s bytes\n" "${_mdz:-0}"
+    sed 's/<[^>]*>/ /g' "$1" 2>/dev/null | tr -s ' \t' ' ' \
+        | grep -o -i -E ".{0,30}(golpe|acesso|masmorra|dungeon).{0,30}" \
+        | head -n 3 | sed 's/^/  texto: /'
+    grep -o -E "/[a-z0-9_-]{3,24}/[a-z0-9_-]{0,24}/?[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+" "$1" 2>/dev/null \
+        | sort -u | head -n 6 | sed 's/^/  link: /'
+    unset _mdz
+}
+
 clanDungeon() {
     [ -n "$CLD" ] || return 1
 
     printf "Masmorra do cla\n"
-    fetch_page "/clandungeon/" "$TMP/DUNGEON"
-    [ -s "$TMP/DUNGEON" ] || return 1
+    # O "?close" dispensa o painel de recompensa da rodada anterior, que
+    # fica na frente do link de golpe — mesmo recurso que o coliseu do cla,
+    # os altares e as bandeiras ja usam.
+    fetch_page "/clandungeon/?close" "$TMP/DUNGEON" 2>/dev/null
+    [ -s "$TMP/DUNGEON" ] || { printf "Masmorra: pagina vazia\n"; return 1; }
 
-    # Golpes gratuitos restantes. O numero vem separado por tags no
-    # HTML cru, entao e preciso remove-las antes de casar.
-    _golpes=`sed 's/<[^>]*>//g' "$TMP/DUNGEON" | grep -oE "Golpes mais:[^0-9]{0,8}[0-9]{1,3}" | grep -oE '[0-9]{1,3}$' | head -n1`
+    _cl=`masmorra_golpe "$TMP/DUNGEON"`
+
+    # PORTA DE ENTRADA PROCURADA NO MENU DO CLA.
+    #
+    # Se a pagina fixa nao trouxe golpe, o proprio cla diz onde fica a
+    # masmorra. Assim uma troca de endereco no jogo deixa de exigir
+    # atualizacao do bot — a mesma razao de os demais modulos lerem o link
+    # em vez de escreve-lo.
+    if [ -z "$_cl" ]; then
+        fetch_page "/clan/${CLD}/" "$TMP/CLANPG" 2>/dev/null
+        # So caminhos: o "[a-z0-9/]" ja descarta /images/dungeon.png e
+        # qualquer coisa com ponto, que seria um arquivo e nao uma pagina.
+        _porta=`grep -o -E "/[a-z0-9/]{0,20}dungeon[a-z0-9/]{0,20}" "$TMP/CLANPG" 2>/dev/null \
+                | grep -v -E "image|/js/|/css/" | sed -n 1p`
+        if [ -n "$_porta" ] && [ "$_porta" != "/clandungeon/" ]; then
+            printf "Masmorra: entrando por %s\n" "$_porta"
+            fetch_page "$_porta" "$TMP/DUNGEON" 2>/dev/null
+            _cl=`masmorra_golpe "$TMP/DUNGEON"`
+        fi
+        unset _porta
+    fi
+
+    # Golpes gratuitos restantes. O numero vem separado por tags no HTML
+    # cru, entao e preciso remove-las antes de casar.
+    _golpes=`sed 's/<[^>]*>//g' "$TMP/DUNGEON" 2>/dev/null \
+             | grep -oE "Golpes mais:[^0-9]{0,8}[0-9]{1,3}" | grep -oE '[0-9]{1,3}$' | head -n1`
     [ -n "$_golpes" ] && printf "Masmorra: %s golpes disponiveis\n" "$_golpes"
+
+    if [ -z "$_cl" ]; then
+        masmorra_dump "$TMP/DUNGEON"
+        unset _cl _golpes
+        return 1
+    fi
 
     # SOMENTE GOLPES GRATUITOS.
     #
-    # A pagina traz um unico link acionavel, /clandungeon/attack/, que
-    # consome os 10 acessos gratis da janela de 8h. Nao existe ali
-    # nenhum link de compra — verificado: nada com gold, pay, buy ou
-    # chance. Quando os gratuitos acabam o link some e o laco encerra,
-    # entao nao ha como gastar ouro por golpe extra.
+    # O link seguido e sempre o de ataque; a pagina nao oferece compra de
+    # golpe, e nenhum link com gold/pay/buy entra aqui. Quando os gratuitos
+    # acabam o link some e o laco encerra.
+    #
+    # Dois tetos: 180s e FUNC_masmorra_max golpes. A janela da 10 acessos;
+    # se algum dia o link parar de sumir quando eles acabarem, sem o teto de
+    # golpes o laco martelaria o servidor por tres minutos.
+    _max=${FUNC_masmorra_max:-15}
+    case "$_max" in ''|*[!0-9]*) _max=15 ;; esac
     _br=$(($(date +%s) + 180))
     _n=0
-    while [ "$(date +%s)" -lt "$_br" ]; do
-        _cl=`grep -o -E '/clandungeon/attack/[?]r=[0-9]+' "$TMP/DUNGEON" | sed -n 1p`
+    while [ "$(date +%s)" -lt "$_br" ] && [ "$_n" -lt "$_max" ]; do
         [ -n "$_cl" ] || break
-        fetch_page "$_cl" "$TMP/DUNGEON"
+        if ! fetch_page "$_cl" "$TMP/DUNGEON"; then
+            printf "Masmorra: falha de rede no golpe %s\n" "$((_n + 1))"
+            break
+        fi
         _n=$((_n + 1))
-        printf "Masmorra: ataque %s\n" "$_n"
+        printf "Masmorra: golpe %s\n" "$_n"
         sleep 1
+        _cl=`masmorra_golpe "$TMP/DUNGEON"`
     done
 
+    unset _golpes _br _cl _max
     if [ "$_n" -gt 0 ]; then
-        printf "Masmorra do cla ok (%s ataques)\n" "$_n"
-    else
-        printf "Masmorra: sem ataque disponivel agora\n"
+        printf "Masmorra do cla ok (%s golpes)\n" "$_n"
+        unset _n
+        return 0
     fi
-    unset _golpes _br _n _cl
+    unset _n
+    return 1
 }
 
 # Conta e lider/oficial do cla?

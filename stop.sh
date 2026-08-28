@@ -91,6 +91,24 @@ for p in $(pgrep -f "play\.sh" 2>/dev/null); do
     [ "$_cwd" = "$TWMDIR" ] && kill -KILL "$p" 2>/dev/null
 done
 
+# PAINEL ABERTO TAMBEM PARA AQUI.
+#
+# O ./status.sh le o panel.sh uma unica vez, quando sobe, e fica desenhando
+# para sempre. Deixado de pe durante um "stop + git pull + play", ele
+# continua mostrando o layout ANTIGO — e a atualizacao parece nao ter
+# funcionado. E o caso classico do WSL, onde o README recomenda tmux e o
+# painel fica num painel do tmux que sobrevive a tudo.
+#
+# Encerrar nao custa nada: o status.sh e somente leitura, nao toca em conta
+# nenhuma. Igual a rede de seguranca do play.sh acima, so alcanca o que roda
+# a partir DESTE diretorio.
+for p in $(pgrep -f "status\.sh" 2>/dev/null); do
+    [ "$p" = "$$" ] && continue
+    _cwd=$(readlink -f "/proc/$p/cwd" 2>/dev/null)
+    [ "$_cwd" = "$TWMDIR" ] || continue
+    kill -TERM "$p" 2>/dev/null
+done
+
 # Rede de seguranca para orfaos de execucoes antigas (antes do setsid).
 pkill -f "$TWMDIR/twm.sh" 2>/dev/null
 pkill -f "$TWMDIR/worker.sh" 2>/dev/null

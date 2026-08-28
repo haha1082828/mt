@@ -25,6 +25,8 @@ clanfight_fight() {
     awk -v ush="$(cat HP)" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }' > RHP
     awk -v ush="$(cat FULL)" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
     if grep -q -o '/dodge/' "$TMP/SRC"; then
+      # A pagina respondeu com a luta: sessao confirmada.
+      sessao_marcar
       printf "Em batalha clanfight - HP: %s\n" "`cat HP`"
     else
       echo 1 > BREAK_LOOP
@@ -138,7 +140,7 @@ clanfight_start() {
       run_curl_exec "$URL/clanfight/enterFight" > "$TMP/SRC"
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
-    grep -o -E '(/[a-z]+(/[a-z]+/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+|/))' "$TMP/SRC" | sed -n '1p' > "$TMP/ACCESS" 2>/dev/null
+    link_acao "$TMP/SRC" clanfight > "$TMP/ACCESS" 2>/dev/null
     printf " Entering...\n"
     printf " Waiting...\n"
     BREAK=$(($(date +%s) + 60))
@@ -148,7 +150,7 @@ clanfight_start() {
         run_curl_exec "${URL}/clanfight/" > "$TMP/SRC"
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
-      grep -o -E '(/clanfight(/[a-z]+/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+|/))' "$TMP/SRC" | sed -n '1p' > "$TMP/ACCESS" 2>/dev/null
+      link_acao "$TMP/SRC" clanfight > "$TMP/ACCESS" 2>/dev/null
       sleep 3
     done
     clanfight_fight

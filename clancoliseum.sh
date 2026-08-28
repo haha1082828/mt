@@ -19,6 +19,8 @@ clancoliseum_fight() {
     awk -v ush="$(cat "$full_ram")" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
 
     if grep -q -o '/dodge/' "$src_ram"; then
+      # A pagina respondeu com a luta: sessao confirmada.
+      sessao_marcar
       printf "Em batalha clancoliseum - HP: %s\n" "`cat USH`"
     else
       echo 1 > BREAK_LOOP
@@ -106,12 +108,37 @@ clancoliseum_start() {
 
   case `date +%H:%M` in
   10:2[5-9]|14:5[5-9])
-    (
-      run_curl_exec "$URL/train" | grep -o -E '\(([0-9]+)\)' | sed 's/[()]//g' > "$full_ram"
-    ) </dev/null > /dev/null 2>&1 &
-    time_exit 17
+    # DISPONIBILIDADE PELO JOGO, NAO PELO CALENDARIO.
+    #
+    # O Coliseu do Cla tem temporadas: fora delas a pagina anuncia "Nova
+    # temporada comeca em ..." e nao oferece inscricao. A versao anterior nao
+    # verificava nada — pedia /train, mandava o enterFight as cegas e entrava
+    # na espera bloqueante ate :30 (ou :00), de 3 em 3 segundos. Fora de
+    # temporada isso deixava o worker ATE CINCO MINUTOS parado sem fazer nada,
+    # duas vezes por dia e por conta, sem arena, sem stats, e ainda com a
+    # sessao estacionada na pagina do coliseu.
+    #
+    # Agora a pagina e consultada ANTES, e a inscricao so acontece se o jogo
+    # de fato a oferecer — o mesmo criterio do apply_event(), usado nos demais
+    # eventos: existe link de enterFight? entao esta disponivel. O
+    # clancoliseum/dodge cobre o caso de a luta ja estar em andamento.
+    #
+    # Nenhuma data e consultada: quando a temporada voltar, o bot volta a
+    # participar sozinho, sem precisar de ajuste.
     (
       run_curl_exec "$URL/clancoliseum/?close=reward" > "$src_ram"
+    ) </dev/null > /dev/null 2>&1 &
+    time_exit 17
+
+    if ! grep -q -E '/clancoliseum/(enterFight|dodge)' "$src_ram"; then
+      printf "Clan coliseum: sem inscricao disponivel agora - pulando\n"
+      rm -f "$src_ram" "$full_ram"
+      unset src_ram full_ram
+      return 0
+    fi
+
+    (
+      run_curl_exec "$URL/train" | grep -o -E '\(([0-9]+)\)' | sed 's/[()]//g' > "$full_ram"
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
     (
@@ -137,7 +164,7 @@ clancoliseum_start() {
       run_curl_exec "$URL/clancoliseum/" > "$src_ram"
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
-    ACCESS=`grep -o -E '(/clancoliseum(/[a-z]+/[?]r[=][0-9]+|/))' "$src_ram" | grep -v 'dodge' | sed -n '1p'`
+    ACCESS=`link_acao "$src_ram" clancoliseum`
     printf " Entering...\n"
     printf " Waiting...\n"
 

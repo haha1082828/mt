@@ -51,13 +51,22 @@ arena_duel() {
     BREAK=$(($(date +%s) + 60))
     count=0
 
-    until grep -q -o 'lab/wizard' "$TMP/SRC" || [ "$(date +%s)" -gt "$BREAK" ]; do
-        ACCESS=`grep -o -E '(/arena/attack/1/[?]r[=][0-9]+)' "$TMP/SRC" | sed -n '1p'`
-        # Sem link de ataque a arena acabou: sai em vez de repetir
-        # fetch_page com URL vazia (que baixa a home) por 60 segundos.
+    # CORRECAO: o laco era "until grep 'lab/wizard' ...". Em alguns estados a
+    # pagina da arena ja traz o link do Laboratorio do Mago e o laco terminava
+    # ANTES de atacar — a conta "ia na arena" mas nao golpeava (energia nao
+    # caia). Agora quem manda e a PRESENCA do link de ataque real (com nonce),
+    # slot generico [0-9]+ (nao fixo em /1/), dentro do teto de 60s.
+    while [ "$(date +%s)" -lt "$BREAK" ]; do
+        # ALINHADO AO ORIGINAL: o alvo e o slot 1 (/arena/attack/1/), que e o
+        # que o original ataca sempre. O generico [0-9]+ fica so de reserva,
+        # para a pagina que por algum motivo nao ofereca o slot 1 — assim o
+        # comportamento e identico ao do original no caso normal, sem parar de
+        # golpear no caso incomum.
+        ACCESS=`grep -o -E '/arena/attack/1/[?]r[=][0-9]+' "$TMP/SRC" | sed -n '1p'`
+        [ -n "$ACCESS" ] || \
+            ACCESS=`grep -o -E '/arena/attack/[0-9]+/[?]r[=][0-9]+' "$TMP/SRC" | sed -n '1p'`
         if [ -z "$ACCESS" ]; then
-            printf "  Arena sem ataques disponiveis
-"
+            printf "  Arena: sem ataque disponivel agora\n"
             break
         fi
         fetch_page "$ACCESS"
@@ -68,12 +77,20 @@ arena_duel() {
 
     fetch_page "/inv/bag/"
     SELL=`grep -o -E '(/inv/bag/sellAll/1/[?]r[=][0-9]+)' "$TMP/SRC" | sed -n '1p'`
-    fetch_page "$SELL"
+    # CORRECAO: sem nada a vender o SELL fica vazio e o fetch_page ""
+    # requisitava a HOME — um pedido a toa por passagem na arena que ainda
+    # sobrescrevia $TMP/pagina, fazendo o painel (e a atividade que os outros
+    # jogadores veem) piscar "Pagina Principal" no meio da arena.
+    if [ -n "$SELL" ]; then
+        fetch_page "$SELL"
+        printf "Sell all items ok\n"
+    else
+        printf "Nada a vender na mochila\n"
+    fi
 
     checkQuest 3 end
     checkQuest 4 end
 
-    printf "Sell all items ok\n"
     printf "Arena ok\n"
 }
 

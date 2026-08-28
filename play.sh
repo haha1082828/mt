@@ -259,15 +259,15 @@ total=$(grep -c -E '^[0-9]+\|' "$ACCOUNTS_FILE" 2>/dev/null)
 case "$total" in *[!0-9]*) total=0 ;; esac
 [ -z "$total" ] && total=0
 
-printf "${GREEN}🐉 DRAGONS${RESET}    ${WHITE}TWM MULTI-CONTAS${RESET}    ${GRAY}BR${RESET}
-"
-printf "${GRAY}────────────────────────────────────────────${RESET}
-"
-printf "${GREEN}%s${RESET} conta(s) cadastrada(s)
-" "$total"
-printf "${GRAY}%s${RESET}
-
-" "$ACCOUNTS_FILE"
+printf "${CYAN}TWM Multi-contas - %s conta(s) [%s]${RESET}\n" "$total" "$TOYBOX"
+# O caminho do accounts.conf so aparece quando NAO e o do proprio
+# repositorio. No uso normal e uma linha que nao informa nada — o arquivo
+# esta onde deveria. Fora do lugar, e a primeira coisa que se quer saber:
+# o resolve_accounts_file procura em quatro pastas e ja aconteceu de o bot
+# subir lendo um arquivo antigo de outra instalacao.
+[ "$ACCOUNTS_FILE" = "$TWMDIR/accounts.conf" ] || \
+    printf "${GOLD}Contas:${RESET} %s\n" "$ACCOUNTS_FILE"
+printf "${GOLD}Mod Author:${RESET} Stephenn Curry\n\n"
 
 # Android 12+ derruba a sessao inteira com SIGKILL.
 #
@@ -332,7 +332,15 @@ fi
 n=0
 n_kept=0
 
-while IFS='|' read -r srv user encoded <&3; do
+# CORRECAO (contas que nao aparecem conectadas): o `read` devolve 1 ao
+# encontrar EOF sem quebra de linha final, entao a ULTIMA linha era lida
+# para as variaveis mas o laco terminava sem processa-la. O accounts.conf
+# perde essa quebra com facilidade — editado a mao, copiado entre
+# aparelhos ou gerado por versao antiga. O contador acima usa `grep -c`,
+# que CONTA essa linha: o play.sh anunciava "6 conta(s)" e subia 5, sem
+# nenhum erro. O `|| [ -n "$srv" ]` processa a linha final tambem quando
+# ela chega sem quebra.
+while IFS='|' read -r srv user encoded <&3 || [ -n "$srv" ]; do
     srv=$(clean_field "$srv")
     user=$(clean_field "$user")
     encoded=$(clean_field "$encoded")
@@ -357,7 +365,7 @@ while IFS='|' read -r srv user encoded <&3; do
     log_file="$HOME/.twm/${acc_id}/twm.log"
     pid_file="$STATUS_DIR/${acc_id}.pid"
 
-    printf "${GREEN}[%02d/%02d]${RESET}  ${WHITE}%s${RESET}  ${GRAY}%s${RESET}\n" "$n" "$total" "$user" "$tag"
+    printf "${GOLD}[%d/%d]${RESET} [%s] %s\n" "$n" "$total" "$tag" "$user"
     if [ "$(server_scheme "$srv")" = "http" ]; then
         printf "   ${YELLOW}AVISO: este servidor nao suporta HTTPS - senha em texto claro${RESET}\n"
     fi
@@ -393,7 +401,7 @@ while IFS='|' read -r srv user encoded <&3; do
         [ "$_base" -lt 3 ] && _base=3
         [ "$_base" -gt 15 ] && _base=15
         _jit=$(( _base + (n + $$) % 4 ))
-        printf "   ${GOLD}próxima conta em %ss${RESET}\n" "$_jit"
+        printf "   aguardando %ss antes da proxima conta\n" "$_jit"
         sleep "$_jit"
     fi
 
@@ -405,8 +413,21 @@ if [ "$n" -eq 0 ]; then
     exit 1
 fi
 
-printf "\n${GREEN}🐉 DRAGONS${RESET}  •  %s conta(s) processada(s)\n" "$n"
-printf "${GREEN}Iniciadas${RESET} %s    ${GOLD}Já rodando${RESET} %s\n\n" "$((n - n_kept))" "$n_kept"
+printf "\n${GREEN}%s conta(s): %s iniciada(s), %s ja rodando.${RESET}\n\n" \
+    "$n" "$((n - n_kept))" "$n_kept"
+
+# O numero de contas processadas tem de bater com o que o arquivo declara.
+# Divergir aqui e o sintoma de uma conta invisivel: cadastrada, contada, e
+# nunca iniciada — foi o que acontecia com a ultima linha quando o arquivo
+# nao terminava em quebra de linha. O laco acima ja trata esse caso; este
+# aviso existe para que qualquer outra causa (linha malformada, nome com
+# barra, servidor desconhecido) apareca em vez de passar em silencio.
+if [ "$n" -lt "$total" ]; then
+    printf "${RED}AVISO: %s conta(s) do arquivo nao foram iniciadas.${RESET}\n" \
+        "$((total - n))"
+    printf "  Confira linhas malformadas em: ${CYAN}%s${RESET}\n" "$ACCOUNTS_FILE"
+    printf "  O formato de cada linha e: ${CYAN}servidor|usuario|credencial${RESET}\n\n"
+fi
 printf "Ver o painel:  ${CYAN}./status.sh${RESET}  (nao mexe nas contas)\n"
 printf "Log de conta:  ${CYAN}tail -f ~/.twm/BR_NomeConta/twm.log${RESET}\n"
 printf "Reiniciar:     ${CYAN}./play.sh --restart${RESET}\n"

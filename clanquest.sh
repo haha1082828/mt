@@ -178,9 +178,27 @@ cq_elixir() {
         4) printf "Elixir de protecao\n" ;;
     esac
 
-    fetch_page "$_cl"
-    _cl=`grep -o -E "/lab/alchemy/${_i}/makePotion[?]r=[0-9]+" "$TMP/SRC" | sed -n 1p`
-    [ -n "$_cl" ] && fetch_page "$_cl"
+    # TRES POCOES, NAO DUAS.
+    #
+    # CORRECAO: a missao pede TRES elixires e a funcao clicava duas vezes —
+    # produzia, rebuscava o link e produzia de novo. Faltando o terceiro, a
+    # missao nunca fechava e o slot do cla ficava ocupado ate expirar.
+    # E o mesmo defeito que o cq_mercador ja teve e que foi corrigido la;
+    # aqui passou batido. Agora os dois usam o mesmo laco, e cada volta
+    # rebusca o link porque o nonce ?r= muda a cada producao.
+    #
+    # O custo e o minimo da missao, que e para ser pago: sem produzir, a
+    # missao nao conclui.
+    _n=1
+    while [ "$_n" -le 3 ]; do
+        [ -n "$_cl" ] || break
+        fetch_page "$_cl"
+        printf "Elixir %s de 3\n" "$_n"
+        _n=$((_n + 1))
+        [ "$_n" -le 3 ] || break
+        _cl=`grep -o -E "/lab/alchemy/${_i}/makePotion[?]r=[0-9]+" "$TMP/SRC" | sed -n 1p`
+    done
+    unset _n
 
     cq_concluir 2>/dev/null
     unset _i _cl
@@ -204,9 +222,21 @@ cq_mercador() {
         2) printf "Produzindo ervas\n" ;;
     esac
 
-    fetch_page "$_cl"
-    _cl=`grep -o -E "/coliseum/merchant/${_i}/startMaking[?]r=[0-9]+&ref=lab" "$TMP/SRC" | sed -n 1p`
-    [ -n "$_cl" ] && fetch_page "$_cl"
+    # ALINHADO AO ORIGINAL: TRES producoes, nao duas.
+    #
+    # A missao do mercador pede tres itens; a nossa versao clicava duas vezes
+    # e a missao nunca fechava. Cada volta rebusca o link, porque o nonce ?r=
+    # muda a cada producao.
+    _n=1
+    while [ "$_n" -le 3 ]; do
+        [ -n "$_cl" ] || break
+        fetch_page "$_cl"
+        printf "Producao %s de 3\n" "$_n"
+        _n=$((_n + 1))
+        [ "$_n" -le 3 ] || break
+        _cl=`grep -o -E "/coliseum/merchant/${_i}/startMaking[?]r=[0-9]+&ref=lab" "$TMP/SRC" | sed -n 1p`
+    done
+    unset _n
 
     cq_concluir 2>/dev/null
     unset _i _cl

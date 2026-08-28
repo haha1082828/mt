@@ -1,9 +1,3 @@
-# Fúria de Titãs
-
-Bot para gerenciamento de múltiplas contas no **[Fúria de Titãs](https://furiadetitas.net)**.
-
----
-
 ## Aviso
 
 O uso de automação pode contrariar os termos de serviço do jogo e levar ao **banimento das contas**. A utilização fica por sua própria responsabilidade.

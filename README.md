@@ -1,3 +1,9 @@
+# Fúria de Titãs
+
+Bot para gerenciamento de múltiplas contas no **[Fúria de Titãs](https://furiadetitas.net)**.
+
+---
+
 ## Aviso
 
 O uso de automação pode contrariar os termos de serviço do jogo e levar ao **banimento das contas**. A utilização fica por sua própria responsabilidade.
@@ -12,8 +18,9 @@ Baixe o Termux **[pela F-Droid](https://f-droid.org/packages/com.termux/)**, poi
 pkg update && pkg upgrade -y
 pkg install git curl wget jq util-linux -y
 termux-wake-lock
-cd ~ && git clone https://github.com/Theoswd/Furia-de-titas.git && cd Furia-de-titas
-sha256sum -c .integrity --quiet && echo "Scripts integros"
+cd ~ && git clone https://github.com/haha1082828/mt.git && cd mt
+chmod +x ./*.sh
+sha256sum -c .integrity --quiet && echo "Scripts íntegros"
 ./setup.sh
 ./play.sh
 ```
@@ -27,8 +34,9 @@ sha256sum -c .integrity --quiet && echo "Scripts integros"
 ```bash
 sudo apt update && sudo apt install -y git curl jq util-linux procps
 cd ~
-git clone https://github.com/Theoswd/Furia-de-titas.git && cd Furia-de-titas
-sha256sum -c .integrity --quiet && echo "Scripts integros"
+git clone https://github.com/Theoswd/mt.git && cd mt
+chmod +x ./*.sh
+sha256sum -c .integrity --quiet && echo "Scripts íntegros"
 ./setup.sh
 ./play.sh
 ```
@@ -43,8 +51,9 @@ sha256sum -c .integrity --quiet && echo "Scripts integros"
 
 ```bash
 apk update && apk add git curl jq tzdata bash
-cd ~ && git clone https://github.com/Theoswd/Furia-de-titas.git && cd Furia-de-titas
-sha256sum -c .integrity --quiet && echo "Scripts integros"
+cd ~ && git clone https://github.com/haha1082828/mt.git && cd mt
+chmod +x ./*.sh
+sha256sum -c .integrity --quiet && echo "Scripts íntegros"
 ./setup.sh
 ./play.sh
 ```
@@ -57,26 +66,26 @@ sha256sum -c .integrity --quiet && echo "Scripts integros"
 
 | O quê | Comando |
 |---|---|
-| Iniciar | `cd ~/Furia-de-titas && ./play.sh` |
-| **Ver o painel** (não mexe nas contas) | `cd ~/Furia-de-titas && ./status.sh` |
-| Rodar as atividades agora | `cd ~/Furia-de-titas && ./agora.sh` |
-| Pausar / retomar | `cd ~/Furia-de-titas && ./pause.sh` |
-| Parar tudo | `cd ~/Furia-de-titas && ./stop.sh` |
-| Cadastrar contas | `cd ~/Furia-de-titas && ./setup.sh` |
-| Deslogar todas as contas | `cd ~/Furia-de-titas && ./logout.sh` |
-| Diagnosticar login | `cd ~/Furia-de-titas && ./diagnose.sh` |
-| **Relatório de saúde** (uma tela, tudo) | `cd ~/Furia-de-titas && ./saude.sh` |
-| Conferir os dados de uma conta | `cd ~/Furia-de-titas && ./lerstats.sh NomeDaConta` |
-| Ver a página da Masmorra do Clã | `cd ~/Furia-de-titas && ./lerstats.sh NomeDaConta masmorra` |
+| Iniciar | `cd ~/mt && ./play.sh` |
+| **Ver o painel** (não mexe nas contas) | `cd ~/mt && ./status.sh` |
+| Rodar as atividades agora | `cd ~/mt && ./agora.sh` |
+| Pausar / retomar | `cd ~/mt && ./pause.sh` |
+| Parar tudo | `cd ~/mt && ./stop.sh` |
+| Cadastrar contas | `cd ~/mt && ./setup.sh` |
+| Deslogar todas as contas | `cd ~/mt && ./logout.sh` |
+| Diagnosticar login | `cd ~/mt && ./diagnose.sh` |
+| **Relatório de saúde** (uma tela, tudo) | `cd ~/mt && ./saude.sh` |
+| Conferir os dados de uma conta | `cd ~/mt && ./lerstats.sh NomeDaConta` |
+| Ver a página da Masmorra do Clã | `cd ~/mt && ./lerstats.sh NomeDaConta masmorra` |
 | Ver log de uma conta | `tail -f ~/.twm/BR_NomeConta/twm.log` |
-| Desinstalar | `cd ~/Furia-de-titas && ./uninstall.sh` |
+| Desinstalar | `cd ~/mt && ./uninstall.sh` |
 
 ---
 
 ## Atualizando o projeto
 
 ```bash
-cd ~/Furia-de-titas && ./stop.sh && git pull && sha256sum -c .integrity --quiet && ./play.sh
+cd ~/mt && ./stop.sh && git pull && sha256sum -c .integrity --quiet && ./play.sh
 ```
 
 As contas já cadastradas e os arquivos armazenados em `~/.twm` permanecem intactos; a atualização altera somente os scripts.
@@ -141,7 +150,7 @@ As contas já cadastradas e os arquivos armazenados em `~/.twm` permanecem intac
 O arquivo `.integrity` contém os hashes SHA-256 usados para verificar os scripts.
 
 ```bash
-cd ~/Furia-de-titas && sha256sum -c .integrity --quiet && echo "Nenhum script foi alterado"
+cd ~/mt && sha256sum -c .integrity --quiet && echo "Nenhum script foi alterado"
 ```
 
 Caso algum arquivo não corresponda ao hash esperado, restaure os arquivos com `git checkout -- . && git pull`.

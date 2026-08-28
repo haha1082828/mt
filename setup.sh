@@ -1,5 +1,5 @@
 #!/bin/sh
-# setup.sh - Gerenciamento de contas do TWM Multi-contas
+# setup.sh - Gerenciamento de contas do TWM Multi-contas (Parte 1 de 2)
 
 # CORRECAO (seguranca): sem umask o accounts.conf nascia 644 (legivel por
 # qualquer processo do mesmo UID no Termux).
@@ -65,21 +65,21 @@ ACCOUNTS_FILE=$(resolve_accounts_file)
 # em sh/dash/toybox).
 _seed=$(( ($$ + $(date +%s)) % 6 ))
 case "$_seed" in
-    0) A1='[1;36m'; A2='[1;34m' ;;
-    1) A1='[1;35m'; A2='[1;31m' ;;
-    2) A1='[1;32m'; A2='[1;33m' ;;
-    3) A1='[1;33m'; A2='[0;33m' ;;
-    4) A1='[1;34m'; A2='[1;35m' ;;
-    *) A1='[1;31m'; A2='[1;36m' ;;
+    0) A1=' \033[1;36m'; A2=' \033[1;34m' ;;
+    1) A1=' \033[1;35m'; A2=' \033[1;31m' ;;
+    2) A1=' \033[1;32m'; A2=' \033[1;33m' ;;
+    3) A1=' \033[1;33m'; A2=' \033[0;33m' ;;
+    4) A1=' \033[1;34m'; A2=' \033[1;35m' ;;
+    *) A1=' \033[1;31m'; A2=' \033[1;36m' ;;
 esac
 
-GREEN='[1;32m'
-GOLD='[1;33m'
-RED='[1;31m'
+GREEN=' \033[1;32m'
+GOLD=' \033[1;33m'
+RED=' \033[1;31m'
 CYAN="$A1"
-DIM='[2m'
-WHITE='[1;37m'
-RESET='[0m'
+DIM=' \033[2m'
+WHITE=' \033[1;37m'
+RESET=' \033[0m'
 
 # ============================================================
 #  SOMENTE SERVIDOR BR (furiadetitas.net)
@@ -98,25 +98,16 @@ show_menu() {
     n=0
     [ -f "$ACCOUNTS_FILE" ] && n=$(grep -c -E '^[0-9]+[|]' "$ACCOUNTS_FILE" 2>/dev/null)
     case "$n" in ''|*[!0-9]*) n=0 ;; esac
-    printf "[1;92m🐉 DRAGONS[0m    [1;37mTWM MULTI-CONTAS[0m    [0;90mBR[0m
-"
-    printf "[0;90m────────────────────────────────────────────[0m
-"
-    printf "[1;92mCLÃ[0m  %s conta(s) cadastrada(s)
-
-" "$n"
-    printf "[1;92m[1][0m  Listar contas
-"
-    printf "[1;92m[2][0m  Adicionar conta
-"
-    printf "[1;92m[3][0m  Remover conta
-"
-    printf "[1;92m[4][0m  Testar login
-"
-    printf "[1;91m[0][0m  Sair
-
-"
-    printf "[1;92mDRAGONS[0m ▸ "
+    printf " \033[1;92m🐉 DRAGONS \033[0m     \033[1;37mTWM MULTI-CONTAS \033[0m     \033[0;90mBR \033[0m\n"
+    printf " \033[0;90m──────────────────────────────────────────── \033[0m\n"
+    printf " \033[1;92mCLÃ \033[0m  %s conta(s) cadastrada(s)\n\n" "$n"
+    printf " \033[1;92m[1] \033[0m  Listar contas\n"
+    printf " \033[1;92m[2] \033[0m  Adicionar conta\n"
+    printf " \033[1;92m[3] \033[0m  Remover conta\n"
+    printf " \033[1;92m[4] \033[0m  Testar login\n"
+    printf " \033[1;92m[5] \033[0m  Iniciar\n"
+    printf " \033[1;91m[0] \033[0m  Sair\n\n"
+    printf " \033[1;92mDRAGONS \033[0m ▸ "
 }
 
 
@@ -132,7 +123,7 @@ list_accounts() {
             [ -z "$user" ] && continue
             url=$(server_url "$srv")
             tag=$(server_tag "$srv")
-            printf "${GOLD}%d)${RESET} [%s] %-20s %s\n" "$n" "$tag" "$user" "$url"
+            printf "${GOLD}%d)${RESET} [%s] %-20s %s\n" "$n" "$tag" "$url"
             n=$((n + 1))
         done < "$ACCOUNTS_FILE"
     fi
@@ -142,10 +133,10 @@ list_accounts() {
 
 # Servidor unico: nao ha o que escolher.
 show_servers() {
-    printf "
-${CYAN}Servidor: BR - furiadetitas.net${RESET}
-"
+    printf "\n${CYAN}Servidor: BR - furiadetitas.net${RESET}\n"
 }
+
+# setup.sh - Gerenciamento de contas do TWM Multi-contas (Parte 2 de 2)
 
 add_account() {
     clear
@@ -175,9 +166,7 @@ add_account() {
     fi
 
     printf "\033[1;92m🔐 SENHA\033[0m\n> "
-    stty -echo 2>/dev/null
     read -r pass
-    stty echo 2>/dev/null
     printf "\n"
     [ -z "$pass" ] && printf "${RED}Senha vazia.${RESET}\n" && sleep 2 && return
 
@@ -185,12 +174,10 @@ add_account() {
 
     # O servidor IN so atende em HTTP (porta 443 recusa conexao).
     if [ "$(server_scheme "$srv")" = "http" ]; then
-        printf "${RED}AVISO: este servidor nao suporta HTTPS.${RESET}
-"
+        printf "${RED}AVISO: este servidor nao suporta HTTPS.${RESET}\n"
         printf "A senha trafegara em texto claro. Continuar? (y/n): "
         read -r _ok
-        case "$_ok" in y|Y) ;; *) printf "Cancelado.
-"; sleep 2; return ;; esac
+        case "$_ok" in y|Y) ;; *) printf "Cancelado.\n"; sleep 2; return ;; esac
     fi
 
     if test_login "$(server_scheme "$srv")://$url" "$user" "$pass"; then
@@ -330,6 +317,7 @@ while true; do
         2) add_account ;;
         3) remove_account ;;
         4) test_account ;;
+        5) clear; "$TWMDIR/play.sh"; exit 0 ;;
         0) printf "\nSaindo...\n"; exit 0 ;;
     esac
 done

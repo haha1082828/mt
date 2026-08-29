@@ -1,7 +1,7 @@
 clanfight_fight() {
   cd "$TMP" || return 1
-  LA=4
-  HPER=48
+  LA=5
+  HPER=33
   RPER=15
   awk -v ush="$(cat FULL)" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
 

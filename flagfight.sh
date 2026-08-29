@@ -6,7 +6,7 @@ flagfight_fight() {
   cd "$TMP" || return 1
 
   LA=5
-  HPER=33
+  HPER=38
   RPER=15
 
   cf_access() {

@@ -105,7 +105,8 @@ show_menu() {
     printf " \033[1;92m[2] \033[0m  Adicionar conta\n"
     printf " \033[1;92m[3] \033[0m  Remover conta\n"
     printf " \033[1;92m[4] \033[0m  Testar login\n"
-    printf " \033[1;92m[5] \033[0m  Iniciar\n"
+    printf " \033[1;92m[5] \033[0m  Iniciar 🤖\n"
+    printf " \033[1;92m[6] \033[0m  Atualizar Script\n"
     printf " \033[1;91m[0] \033[0m  Sair\n\n"
     printf " \033[1;92mDRAGONS \033[0m ▸ "
 }
@@ -308,6 +309,16 @@ test_account() {
     sleep 3
 }
 
+update_script() {
+    clear
+    printf "${GREEN}🐉 DRAGONS${RESET}  ${WHITE}ATUALIZAR SCRIPT${RESET}\n${GRAY}────────────────────────────────────────────${RESET}\n\n"
+    printf "${GOLD}Aplicando atualizações e reiniciando o bot...${RESET}\n\n"
+    
+    cd ~/mt && ./stop.sh && git reset --hard HEAD && git pull && chmod +x ./*.sh && ./setup.sh
+    
+    exit 0
+}
+
 # Loop principal
 while true; do
     show_menu
@@ -318,6 +329,7 @@ while true; do
         3) remove_account ;;
         4) test_account ;;
         5) clear; "$TWMDIR/play.sh"; exit 0 ;;
+        6) update_script ;;
         0) printf "\nSaindo...\n"; exit 0 ;;
     esac
 done

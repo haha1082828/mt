@@ -38,7 +38,7 @@ altars_fight() {
   FIGHT_BREAK=$(($(date +%s) + 600))
   until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$FIGHT_BREAK" ]; do
     cf_access
-    if ! grep -q -o 'txt smpl grey' "$TMP/src.html" && \
+    if [ -s DODGE ] && ! grep -q -o 'txt smpl grey' "$TMP/src.html" && \
        [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && \
        [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ] && \
        awk -v ush="$(cat HP)" -v oldhp="$(cat old_HP)" 'BEGIN { exit !(ush < oldhp) }'; then
@@ -49,7 +49,7 @@ altars_fight() {
       cf_access
       cat HP > old_HP; date +%s > last_dodge
 
-    elif awk -v ush="$(cat HP)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
+    elif [ -s HEAL ] && awk -v ush="$(cat HP)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
          [ "$(($(date +%s) - $(cat last_heal)))" -gt 90 ] && \
          [ "$(($(date +%s) - $(cat last_heal)))" -lt 300 ]; then
       (
@@ -57,7 +57,7 @@ altars_fight() {
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
       cf_access
-      cat HP > FULL; cat HP > old_HP
+      cat HP > old_HP
       date +%s > last_heal
 
     elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
@@ -97,7 +97,6 @@ altars_fight() {
   sleep 10s
   [ -t 1 ] && clear
 }
-
 altars_start() {
   case `date +%H:%M` in
   (13:5[5-9]|20:5[5-9])
@@ -130,3 +129,4 @@ altars_start() {
     ;;
   esac
 }
+# shellcheck disable=SC2148

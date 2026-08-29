@@ -1,11 +1,3 @@
-#
-#/clanfight/dodge/?r=0
-#/clanfight/attack/?r=0
-#/clanfight/attackrandom/?r=0
-#/clanfight/heal/?r=0
-#/clanfight/stone/?r=0
-#/clanfight/grass/?r=0
-#/clanfight/?out_gate
 clanfight_fight() {
   cd "$TMP" || return 1
   LA=4
@@ -49,7 +41,7 @@ clanfight_fight() {
   FIGHT_BREAK=$(($(date +%s) + 600))
   until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$FIGHT_BREAK" ]; do
     cf_access
-    if ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
+    if [ -s DODGE ] && ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
        [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && \
        [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ] && \
        awk -v ush="$(cat HP)" -v oldhp="$(cat old_HP)" 'BEGIN { exit !(ush < oldhp) }'; then
@@ -61,7 +53,7 @@ clanfight_fight() {
       cat HP > old_HP
       date +%s > last_dodge
 
-    elif awk -v ush="$(cat HP)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
+    elif [ -s HEAL ] && awk -v ush="$(cat HP)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
          [ "$(($(date +%s) - $(cat last_heal)))" -gt 90 ] && \
          [ "$(($(date +%s) - $(cat last_heal)))" -lt 300 ]; then
       (
@@ -74,7 +66,6 @@ clanfight_fight() {
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
       cf_access
-      cat HP > FULL
       cat HP > old_HP
       date +%s > last_heal
 
@@ -115,7 +106,6 @@ clanfight_fight() {
   sleep 10s
   [ -t 1 ] && clear
 }
-
 clanfight_start() {
   # CHAVE COM ERRO DE DIGITACAO, E NINGUEM A LIA.
   #

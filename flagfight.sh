@@ -46,19 +46,18 @@ flagfight_fight() {
   # travava naquela batalha. Teto de 10 minutos.
   FIGHT_BREAK=$(($(date +%s) + 600))
   until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$FIGHT_BREAK" ]; do
-    if awk -v ush="$(cat USH)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
+    if [ -s HEAL ] && awk -v ush="$(cat USH)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
        [ "$(($(date +%s) - $(cat last_heal)))" -gt 90 ] && \
        [ "$(($(date +%s) - $(cat last_heal)))" -lt 300 ]; then
       (
-        run_curl_exec "${URL}$(cat SHIELD)" > "$src_ram"
+        run_curl_exec "${URL}$(cat HEAL)" > "$src_ram"
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
       cf_access
-      cat USH > "$full_ram"
       cat USH > old_HP
       date +%s > last_heal
 
-    elif ! grep -q -o 'txt smpl grey' "$TMP/src.html" && \
+    elif [ -s DODGE ] && ! grep -q -o 'txt smpl grey' "$TMP/src.html" && \
          [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && \
          [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ] && \
          awk -v ush="$(cat USH)" -v oldhp="$(cat old_HP)" 'BEGIN { exit !(ush < oldhp) }'; then
@@ -104,7 +103,6 @@ flagfight_fight() {
   apply_event flagfight
   [ -t 1 ] && clear
 }
-
 flagfight_start() {
   src_ram="$TMP/flag_src"
   full_ram="$TMP/flag_full"
@@ -149,3 +147,5 @@ flagfight_start() {
     ;;
   esac
 }
+# Global variable to control loop exits
+EXIT_CONFIG="n"

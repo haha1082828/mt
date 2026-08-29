@@ -42,7 +42,7 @@ clancoliseum_fight() {
   # travava naquela batalha. Teto de 10 minutos.
   FIGHT_BREAK=$(($(date +%s) + 600))
   until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$FIGHT_BREAK" ]; do
-    if awk -v ush="$(cat USH)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
+    if [ -s HEAL ] && awk -v ush="$(cat USH)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
        [ "$(($(date +%s) - $(cat last_heal)))" -gt 90 ] && \
        [ "$(($(date +%s) - $(cat last_heal)))" -lt 300 ]; then
       (
@@ -53,7 +53,7 @@ clancoliseum_fight() {
       cat USH > old_HP
       date +%s > last_heal
 
-    elif ! grep -q -o 'txt smpl grey' "$src_ram" && \
+    elif [ -s DODGE ] && ! grep -q -o 'txt smpl grey' "$src_ram" && \
          [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && \
          [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ] && \
          awk -v ush="$(cat USH)" -v oldhp="$(cat old_HP)" 'BEGIN { exit !(ush < oldhp) }'; then
@@ -101,7 +101,6 @@ clancoliseum_fight() {
   sleep 10s
   [ -t 1 ] && clear
 }
-
 clancoliseum_start() {
   src_ram="$TMP/ccol_src"
   full_ram="$TMP/ccol_full"
@@ -189,3 +188,11 @@ clancoliseum_start() {
     ;;
   esac
 }
+#
+#/clandmgfight/dodge/?r=0
+#/clandmgfight/attack/?r=0
+#/clandmgfight/attackrandom/?r=0
+#/clandmgfight/heal/?r=0
+#/clandmgfight/stone/?r=0
+#/clandmgfight/grass/?r=0
+#/clandmgfight/?out_gate

@@ -1,4 +1,3 @@
-# shellcheck disable=SC2155
 coliseum_fight() {
     # Arquivos de batalha gravados no diretorio da conta (sem mktemp)
     src_ram="$TMP/col_src"
@@ -65,9 +64,6 @@ coliseum_fight() {
         done
 
         cl_access() {
-            last_heal=$(($(date +%s) - 90))
-            last_dodge=$(($(date +%s) - 20))
-            last_atk=$(($(date +%s) - LA))
 
             USH=`grep -o -E '(hp)[^A-z0-9]{1,4}[0-9]{2,5}' "$src_ram" | grep -o -E '[0-9]{2,5}' | sed 's,\ ,,g'`
             ENH=`grep -o -E '(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}' "$src_ram" | sed -n 's,nbsp[;],,;s,\ ,,;1p'`
@@ -102,6 +98,9 @@ coliseum_fight() {
             fi
         }
 
+        last_heal=$(($(date +%s) - 90))
+        last_dodge=$(($(date +%s) - 20))
+        last_atk=$(($(date +%s) - LA))
         cl_access
         OLDHP=$USH
         BREAK_LOOP=""
@@ -116,19 +115,18 @@ coliseum_fight() {
             time_since_last_dodge=$((now - last_dodge))
             time_since_last_atk=$((now - last_atk))
 
-            if awk -v ush="$USH" -v hlhp="$HLHP" 'BEGIN { exit !(ush < hlhp) }' && \
-               [ "$time_since_last_heal" -gt 90 ] && [ "$time_since_last_heal" -lt 300 ]; then
+            if [ -n "$HEAL" ] && awk -v ush="$USH" -v hlhp="$HLHP" 'BEGIN { exit !(ush < hlhp) }' && \
+               [ "$time_since_last_heal" -gt 90 ]; then
                 (
                     run_curl_exec "${URL}${HEAL}" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 17
                 cl_access
-                echo "$USH" > "$full_ram"
                 last_heal=$now
                 last_atk=$now
 
-            elif ! grep -q -o 'txt smpl grey' "$src_ram" && \
-                 [ "$time_since_last_dodge" -gt 20 ] && [ "$time_since_last_dodge" -lt 300 ] && \
+            elif [ -n "$DODGE" ] && ! grep -q -o 'txt smpl grey' "$src_ram" && \
+                 [ "$time_since_last_dodge" -gt 20 ] && \
                  awk -v ush="$USH" -v oldhp="$OLDHP" 'BEGIN { exit !(ush < oldhp) }'; then
                 (
                     run_curl_exec "${URL}${DODGE}" > "$src_ram"
@@ -176,7 +174,6 @@ coliseum_fight() {
         printf "It was not possible to start the battle at this time.\n"
     fi
 }
-
 coliseum_start() {
     if [ "$FUNC_coliseum" = "n" ]; then
         return
@@ -218,3 +215,5 @@ coliseum_start() {
         sleep 5s
     fi
 }
+# shellcheck disable=SC2154
+# shellcheck disable=SC2317

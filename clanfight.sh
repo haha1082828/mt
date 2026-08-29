@@ -41,7 +41,7 @@ clanfight_fight() {
   FIGHT_BREAK=$(($(date +%s) + 600))
   until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$FIGHT_BREAK" ]; do
     cf_access
-    if [ -s DODGE ] && ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
+    if ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
        [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && \
        [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ] && \
        awk -v ush="$(cat HP)" -v oldhp="$(cat old_HP)" 'BEGIN { exit !(ush < oldhp) }'; then
@@ -53,7 +53,7 @@ clanfight_fight() {
       cat HP > old_HP
       date +%s > last_dodge
 
-    elif [ -s HEAL ] && awk -v ush="$(cat HP)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
+    elif awk -v ush="$(cat HP)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
          [ "$(($(date +%s) - $(cat last_heal)))" -gt 90 ] && \
          [ "$(($(date +%s) - $(cat last_heal)))" -lt 300 ]; then
       (
@@ -106,6 +106,7 @@ clanfight_fight() {
   sleep 10s
   [ -t 1 ] && clear
 }
+
 clanfight_start() {
   # CHAVE COM ERRO DE DIGITACAO, E NINGUEM A LIA.
   #

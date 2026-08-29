@@ -64,7 +64,6 @@ coliseum_fight() {
         done
 
         cl_access() {
-
             USH=`grep -o -E '(hp)[^A-z0-9]{1,4}[0-9]{2,5}' "$src_ram" | grep -o -E '[0-9]{2,5}' | sed 's,\ ,,g'`
             ENH=`grep -o -E '(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}' "$src_ram" | sed -n 's,nbsp[;],,;s,\ ,,;1p'`
             USER=`grep -o -E '([[:upper:]][[:lower:]]{0,15}( [[:upper:]][[:lower:]]{0,13})?)[[:space:]][^[:alnum:]]s' "$src_ram" | sed -n 's,\ [<]s,,;s,\ ,_,;2p'`
@@ -115,8 +114,8 @@ coliseum_fight() {
             time_since_last_dodge=$((now - last_dodge))
             time_since_last_atk=$((now - last_atk))
 
-            if [ -n "$HEAL" ] && awk -v ush="$USH" -v hlhp="$HLHP" 'BEGIN { exit !(ush < hlhp) }' && \
-               [ "$time_since_last_heal" -gt 90 ]; then
+            if awk -v ush="$USH" -v hlhp="$HLHP" 'BEGIN { exit !(ush < hlhp) }' && \
+               [ "$time_since_last_heal" -gt 90 ] && [ "$time_since_last_heal" -lt 300 ]; then
                 (
                     run_curl_exec "${URL}${HEAL}" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
@@ -125,8 +124,8 @@ coliseum_fight() {
                 last_heal=$now
                 last_atk=$now
 
-            elif [ -n "$DODGE" ] && ! grep -q -o 'txt smpl grey' "$src_ram" && \
-                 [ "$time_since_last_dodge" -gt 20 ] && \
+            elif ! grep -q -o 'txt smpl grey' "$src_ram" && \
+                 [ "$time_since_last_dodge" -gt 20 ] && [ "$time_since_last_dodge" -lt 300 ] && \
                  awk -v ush="$USH" -v oldhp="$OLDHP" 'BEGIN { exit !(ush < oldhp) }'; then
                 (
                     run_curl_exec "${URL}${DODGE}" > "$src_ram"
@@ -174,6 +173,7 @@ coliseum_fight() {
         printf "It was not possible to start the battle at this time.\n"
     fi
 }
+
 coliseum_start() {
     if [ "$FUNC_coliseum" = "n" ]; then
         return

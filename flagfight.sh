@@ -6,7 +6,7 @@ flagfight_fight() {
   cd "$TMP" || return 1
 
   LA=4
-  HPER=38
+  HPER=48
   RPER=15
 
   cf_access() {
@@ -92,7 +92,7 @@ flagfight_fight() {
     else
       fetch_page "/flagfight" "$src_ram"
       cf_access
-      sleep 1s
+      sleep 0.5s
     fi
   done
 

@@ -3,7 +3,7 @@ coliseum_fight() {
     src_ram="$TMP/col_src"
     full_ram="$TMP/col_full"
 
-    LA=4
+    LA=5
     HPER=38
     RPER=5
 
@@ -160,7 +160,7 @@ coliseum_fight() {
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 17
                 cl_access
-                sleep 1s
+                sleep 0.5s
             fi
         done
 

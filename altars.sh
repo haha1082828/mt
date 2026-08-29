@@ -3,7 +3,7 @@ altars_fight() {
   apply_event
 
   LA=4
-  echo "40" > HPER
+  echo "48" > HPER
   echo "15" > RPER
 
   cf_access() {
@@ -86,7 +86,7 @@ altars_fight() {
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
       cf_access
-      sleep 1s
+      sleep 0.5s
     fi
   done
 

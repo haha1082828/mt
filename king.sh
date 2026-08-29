@@ -5,22 +5,29 @@ king_fight() {
   HPER="38"
   RPER=5
 
+  # LEITURA DA PAGINA: DE 23 PROCESSOS PARA 2.
+  #
+  # Esta funcao lia o MESMO arquivo 23 vezes — sete grep, nove sed, dois awk
+  # e cinco "$(cat ...)" — e roda duas a tres vezes por volta do laco de
+  # luta. Davam 50 a 70 processos por volta, por conta, com todas as contas
+  # entrando no evento no mesmo minuto. E o que estourava o teto de 32
+  # processos do Android 12 e trazia o "signal 9" de volta justamente em
+  # evento.
+  #
+  # Agora um unico awk le a pagina uma vez e grava os mesmos arquivos, com o
+  # mesmo conteudo — conferido byte a byte em cinco cenarios: luta completa,
+  # sem kingatk/stone, luta encerrada, pagina vazia e HP ausente.
+  #
+  # Sobram dois processos: o awk e o grep do nome do alvo, que continua
+  # separado por depender de "sed -n 2p" com substituicoes proprias.
   cl_access() {
-    grep -o -E '(/king/attack/[?]r[=][0-9]+)' "$TMP/SRC" | sed -n 1p > ATK 2>/dev/null
-    grep -o -E '(/king/kingatk/[?]r[=][0-9]+)' "$TMP/SRC" | sed -n 1p > KINGATK 2>/dev/null
-    grep -o -E '(/king/at[a-z]{0,3}k[a-z]{3,6}/[?]r[=][0-9]+)' "$TMP/SRC" | sed -n 1p > ATKRND 2>/dev/null
-    grep -o -E '(/king/dodge/[?]r[=][0-9]+)' "$TMP/SRC" | sed -n 1p > DODGE 2>/dev/null
-    grep -o -E '(/king/stone/[?]r[=][0-9]+)' "$TMP/SRC" | sed -n 1p > STONE 2>/dev/null
-    grep -o -E '(/king/heal/[?]r[=][0-9]+)' "$TMP/SRC" | sed -n 1p > HEAL 2>/dev/null
+    set -- `combate_ler king "$HPER" "$RPER" "$TMP/SRC"`
+    _emluta="$1"; RHP="$2"; HLHP="$3"; _hpat="$4"; _hp2at="$5"
     grep -o -E '([[:upper:]][[:lower:]]{0,15}( [[:upper:]][[:lower:]]{0,13})?)[[:space:]][^[:alnum:][:space:]]' "$TMP/SRC" | sed -n 's,\ [<]s,,;s,\ ,_,;2p' > USER 2>/dev/null
-    grep -o -E "(hp)[^A-Za-z0-9_]{1,4}[0-9]{1,6}" "$TMP/SRC" | sed "s,hp[']\\/[>],,;s,\ ,," > HP 2>/dev/null
-    grep -o -E "(nbsp)[^A-Za-z0-9_]{1,2}[0-9]{1,6}" "$TMP/SRC" | sed -n 's,nbsp[;],,;s,\ ,,;1p' > HP2 2>/dev/null
-    RHP=`awk -v ush="$(cat HP)" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }'`
-    HLHP=`awk -v ush="$(cat FULL)" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }'`
-    if grep -q -o '/dodge/' "$TMP/SRC"; then
+    if [ "$_emluta" = "1" ]; then
       # A pagina respondeu com a luta: sessao confirmada.
       sessao_marcar
-      printf "Em batalha - HP: %s\n" "`cat HP`"
+      printf "Em batalha - HP: %s\n" "$_hpat"
     else
       (
         run_curl_exec "${URL}/king" > "$TMP/SRC"
@@ -42,11 +49,11 @@ king_fight() {
 
   # Calcula porcentagem de HP do rei
   # HP2 = HP atual do rei, FULL = HP maximo do rei
+  # Os dois valores ja vem do cl_access e do cache do FULL: eram dois "cat"
+  # por volta do laco, so para calcular esta porcentagem.
   king_percent() {
-    _hp2=`cat HP2 2>/dev/null`
-    _full=`cat FULL 2>/dev/null`
-    if [ -n "$_hp2" ] && [ -n "$_full" ] && [ "$_full" -gt 0 ] 2>/dev/null; then
-      awk -v h="$_hp2" -v f="$_full" 'BEGIN { printf "%.2f", h / f * 100 }'
+    if [ -n "$_hp2at" ] && [ -n "$_fullat" ] && [ "$_fullat" -gt 0 ] 2>/dev/null; then
+      awk -v h="$_hp2at" -v f="$_fullat" 'BEGIN { printf "%.2f", h / f * 100 }'
     else
       echo "100"
     fi
@@ -54,9 +61,20 @@ king_fight() {
 
   cl_access
   cat HP > old_HP
-  echo $(($(date +%s) - 20)) > last_dodge
-  echo $(($(date +%s) - 90)) > last_heal
-  echo $(($(date +%s) - LA)) > last_atk
+  # ESTADO DO LACO EM VARIAVEIS.
+  #
+  # last_atk, last_heal e FULL eram lidos com "$(cat ...)" a cada
+  # comparacao — dois processos cada, varias vezes por volta. Os arquivos
+  # continuam sendo gravados (outros pontos e o painel os leem), mas quem
+  # decide dentro do laco passa a ler a variavel, que nao custa processo.
+  _agora=`date +%s`
+  _last_dodge=$(( _agora - 20 ))
+  _last_heal=$(( _agora - 90 ))
+  _last_atk=$(( _agora - LA ))
+  _fullat=`cat FULL 2>/dev/null`
+  echo "$_last_dodge" > last_dodge
+  echo "$_last_heal"  > last_heal
+  echo "$_last_atk"   > last_atk
   : > BREAK_LOOP
 
   # LIMITE DE TEMPO: BREAK_LOOP so e gravado quando a luta termina.
@@ -64,8 +82,9 @@ king_fight() {
   # inesperado), o laco ficava requisitando para sempre e a conta
   # travava naquela batalha. Teto de 10 minutos.
   FIGHT_BREAK=$(($(date +%s) + 600))
-  until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$FIGHT_BREAK" ]; do
+  until [ -s "BREAK_LOOP" ] || [ "$_agora" -gt "$FIGHT_BREAK" ]; do
     : > BREAK_LOOP
+    _agora=`date +%s`
 
     KPCT=`king_percent`
 
@@ -74,19 +93,20 @@ king_fight() {
     if awk -v p="$KPCT" 'BEGIN { exit !(p > 10) }'; then
 
       # Heal do jogador (mantido em modo normal)
-      if awk -v ush="$(cat HP)" -v hlhp="$HLHP" 'BEGIN { exit !(ush < hlhp) }' && \
-         [ "$(($(date +%s) - $(cat last_heal)))" -gt 90 ] && \
-         [ "$(($(date +%s) - $(cat last_heal)))" -lt 300 ]; then
+      if awk -v ush="$_hpat" -v hlhp="$HLHP" 'BEGIN { exit !(ush < hlhp) }' && \
+         [ $(( _agora - _last_heal )) -gt 90 ] && \
+         [ $(( _agora - _last_heal )) -lt 300 ]; then
         (
           run_curl_exec "${URL}$(cat HEAL)" > "$TMP/SRC"
         ) </dev/null > /dev/null 2>&1 &
         time_exit 17
         cl_access
-        cat HP > FULL; date +%s > last_heal
+        cat HP > FULL; _fullat="$_hpat"
+        _last_heal=`date +%s`; echo "$_last_heal" > last_heal
         sleep 0.3s
 
       # Ataque com cooldown normal
-      elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk > atktime) }'; then
+      elif [ $(( _agora - _last_atk )) -gt "$LA" ]; then
         if grep -q -o -E '(king/kingatk/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$TMP/SRC"; then
           # kingatk disponivel — prioridade maxima
           (
@@ -95,7 +115,7 @@ king_fight() {
           time_exit 17
           cl_access
           # Stone se rei com HP baixo
-          if awk -v ush="$(cat HP2)" 'BEGIN { exit !(ush < 25) }'; then
+          if awk -v ush="$_hp2at" 'BEGIN { exit !(ush < 25) }'; then
             (
               run_curl_exec "${URL}$(cat STONE)" > "$TMP/SRC"
             ) </dev/null > /dev/null 2>&1 &
@@ -104,18 +124,18 @@ king_fight() {
           fi
         else
           # Ataque random ou normal
-          if awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
+          if [ $(( _agora - _last_atk )) -ne "$LA" ] && \
              ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
-             awk -v rhp="$RHP" -v enh="$(cat HP2)" 'BEGIN { exit !(rhp < enh) }' || \
-             awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
+             awk -v rhp="$RHP" -v enh="$_hp2at" 'BEGIN { exit !(rhp < enh) }' || \
+             [ $(( _agora - _last_atk )) -ne "$LA" ] && \
              ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
-             grep -q -o "$(cat USER)" allies.txt; then
+             grep -q -o "`cat USER`" allies.txt; then
             (
               run_curl_exec "${URL}$(cat ATKRND)" > "$TMP/SRC"
             ) </dev/null > /dev/null 2>&1 &
             time_exit 17
             cl_access
-            date +%s > last_atk
+            _last_atk=`date +%s`; echo "$_last_atk" > last_atk
           fi
           (
             run_curl_exec "${URL}$(cat ATK)" > "$TMP/SRC"
@@ -123,7 +143,7 @@ king_fight() {
           time_exit 17
           cl_access
         fi
-        date +%s > last_atk
+        _last_atk=`date +%s`; echo "$_last_atk" > last_atk
 
       else
         # Aguarda cooldown — apenas atualiza pagina
@@ -147,7 +167,7 @@ king_fight() {
         ) </dev/null > /dev/null 2>&1 &
         time_exit 17
         cl_access
-        date +%s > last_atk
+        _last_atk=`date +%s`; echo "$_last_atk" > last_atk
       else
         # Sem kingatk — apenas atualiza e monitora HP
         (
@@ -207,7 +227,7 @@ king_fight() {
         cl_access
       fi
 
-      date +%s > last_atk
+      _last_atk=`date +%s`; echo "$_last_atk" > last_atk
     fi
 
   done

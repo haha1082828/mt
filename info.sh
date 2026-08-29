@@ -47,7 +47,21 @@ time_exit() {
     # Espacamento deliberado entre requisicoes: limitador de taxa natural,
     # herdado da versao original (que o obtinha do primeiro "sleep 1" do
     # laco de espera).
-    sleep 1
+    #
+    # CORRECAO: este "sleep" ignorava o TWM_PACING, a chave que o play.sh ja
+    # liga sozinho no Termux acima de 3 contas justamente para nao deixar um
+    # processo parado por requisicao. O fetch_page a respeitava; o time_exit,
+    # nao — e e ele que serve TODO o codigo de batalha, que e onde o pico de
+    # processos acontece. Com 6 contas em evento eram 6 "sleep" parados que a
+    # configuracao mandava nao existir.
+    #
+    # Com TWM_PACING=0 quem espaca as requisicoes e o proprio tempo de ida e
+    # volta ao servidor (meio segundo a dois), como o comentario do fetch_page
+    # ja documentava. Fora do Termux o padrao continua 1.
+    _te_pace="${TWM_PACING:-1}"
+    case "$_te_pace" in ''|*[!0-9]*) _te_pace=1 ;; esac
+    [ "$_te_pace" -gt 0 ] && sleep "$_te_pace"
+    unset _te_pace
 
     # CORRECAO CRITICA (SIGKILL / "signal 9" no Android 12+):
     #
@@ -251,6 +265,121 @@ fetch_page() {
     fi
     unset _fp_rc
     return 0
+}
+
+# ============================================================
+#  LEITURA DA PAGINA DE COMBATE — UMA PASSADA SO
+#
+#  Os modulos de batalha liam o MESMO arquivo 23 vezes por chamada: sete
+#  grep, nove sed, dois awk e cinco "$(cat ...)" em substituicao de comando.
+#  Como a leitura roda duas ou tres vezes por volta do laco, davam 50 a 70
+#  processos por volta, POR CONTA.
+#
+#  Isso importa no Android 12, onde a sessao inteira e morta acima de 32
+#  processos filhos. O pico acontece justamente no evento, quando todas as
+#  contas entram no mesmo minuto:
+#
+#      1 play.sh + 6 workers                       =  7 permanentes
+#      6 x (subshell->curl + sleep do time_exit)   = 12
+#      6 x ~2 transitorios de parsing              = 12
+#                                                    ----
+#                                                     31
+#
+#  Um grep a mais estoura. Aqui um unico awk le a pagina uma vez e grava os
+#  mesmos arquivos, com as mesmas expressoes: 23 processos viram 1.
+#
+#  Uso:  combate_ler SECAO HPER RPER ARQUIVO
+#  Saida: imprime "1" se a pagina ainda e de luta, "0" se acabou.
+#  Grava: ATK ATKRND DODGE HEAL STONE KINGATK GRASS HP HP2 RHP HLHP
+#         no diretorio corrente, como antes.
+combate_ler() {
+    awk -v sec="$1" -v hper="$2" -v rper="$3" '
+        function grava(nome, valor) {
+            # Mesma saida do "grep | sed > ARQUIVO": vazio quando nao ha
+            # match, com quebra de linha no fim quando ha. O "[ -s ARQUIVO ]"
+            # dos modulos distingue os dois casos.
+            if (valor == "") printf "" > nome
+            else             printf "%s\n", valor > nome
+            close(nome)
+        }
+        # RHP e HLHP saiam de "awk BEGIN{printf} > ARQUIVO", ou seja SEM
+        # quebra de linha. Manter a diferenca evita mudar o que os modulos
+        # que leem esses arquivos ja veem.
+        function grava_num(nome, valor) {
+            printf "%s", valor > nome
+            close(nome)
+        }
+        { todo = todo $0 " " }
+        END {
+            # NADA DE {n,m} AQUI.
+            #
+            # O mawk (o awk do Debian/WSL) aceita intervalos mas nao volta
+            # atras: em "/king/at[a-z]{0,3}k[a-z]{3,6}/" ele casa "ran" e
+            # desiste em vez de tentar "random" e chegar na barra. Medido —
+            # a extracao do ataque aleatorio vinha vazia. Por isso os links
+            # sao pegos com uma expressao simples e o VERBO e classificado
+            # por comparacao de texto, que funciona em qualquer awk.
+            resto = todo
+            while (match(resto, "/" sec "/[a-z]+/[?]r[=][0-9]+")) {
+                link = substr(resto, RSTART, RLENGTH)
+                resto = substr(resto, RSTART + RLENGTH)
+
+                verbo = link
+                sub("^/" sec "/", "", verbo)
+                sub("/.*$", "", verbo)
+
+                alvo = ""
+                if      (verbo == "attack")  alvo = "ATK"
+                else if (verbo == "kingatk") alvo = "KINGATK"
+                else if (verbo == "dodge")   alvo = "DODGE"
+                else if (verbo == "heal")    alvo = "HEAL"
+                else if (verbo == "stone")   alvo = "STONE"
+                else if (verbo == "grass")   alvo = "GRASS"
+                else if (verbo ~ /^at.*k./)  alvo = "ATKRND"
+
+                # Primeira ocorrencia vence, como o "sed -n 1p" fazia.
+                if (alvo != "" && !(alvo in achado)) achado[alvo] = link
+            }
+
+            n = split("ATK ATKRND DODGE HEAL STONE KINGATK GRASS", lista, " ")
+            for (i = 1; i <= n; i++)
+                grava(lista[i], (lista[i] in achado) ? achado[lista[i]] : "")
+
+            # HP do jogador e HP do alvo. "[^A-Za-z0-9_][^A-Za-z0-9_]*" no
+            # lugar de "{1,4}" pelo mesmo motivo: um ou mais separadores.
+            hp = ""
+            if (match(todo, "hp[^A-Za-z0-9_][^A-Za-z0-9_]*[0-9][0-9]*")) {
+                hp = substr(todo, RSTART, RLENGTH)
+                sub(/^hp[^0-9]*/, "", hp)
+            }
+            grava("HP", hp)
+
+            hp2 = ""
+            if (match(todo, "nbsp[^A-Za-z0-9_][^A-Za-z0-9_]*[0-9][0-9]*")) {
+                hp2 = substr(todo, RSTART, RLENGTH)
+                sub(/^nbsp[^0-9]*/, "", hp2)
+            }
+            grava("HP2", hp2)
+
+            # Os dois limiares saiam de um awk cada, lendo arquivo com cat.
+            full = ""
+            getline full < "FULL"; close("FULL")
+            rhp  = sprintf("%.0f", hp * rper / 100 + hp)
+            hlhp = sprintf("%.0f", full * hper / 100)
+            grava_num("RHP",  rhp)
+            grava_num("HLHP", hlhp)
+
+            # Os mesmos valores tambem saem na saida padrao, para quem os usa
+            # como VARIAVEL (o king.sh) nao precisar de um "cat" por campo.
+            # Campo vazio vira 0: sem isso a divisao em posicionais desalinha.
+            printf "%s %s %s %s %s\n", \
+                   (todo ~ /\/dodge\//) ? "1" : "0", \
+                   (rhp  == "") ? "0" : rhp, \
+                   (hlhp == "") ? "0" : hlhp, \
+                   (hp   == "") ? "0" : hp, \
+                   (hp2  == "") ? "0" : hp2
+        }
+    ' "$4" 2>/dev/null
 }
 
 # A sessao esta viva: carimba a hora da ultima confirmacao.

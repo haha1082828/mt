@@ -472,12 +472,38 @@ ativ_marcar() { date +%s > "$TMP/last_$1" 2>/dev/null; }
 evento_dedicar() {
     _ed_m=`date +%M | sed 's/^0//'`
     case "$_ed_m" in ''|*[!0-9]*) _ed_m=0 ;; esac
+    _ed_s=`date +%S | sed 's/^0//'`
+    case "$_ed_s" in ''|*[!0-9]*) _ed_s=0 ;; esac
     if   [ "$_ed_m" -ge 50 ]; then _ed_f=$(( 60 - _ed_m ))
     elif [ "$_ed_m" -ge 20 ] && [ "$_ed_m" -lt 30 ]; then _ed_f=$(( 30 - _ed_m ))
     else _ed_f=0
     fi
-    echo $(( `date +%s` + _ed_f * 60 )) > "$TMP/em_evento" 2>/dev/null
-    unset _ed_m _ed_f
+
+    # ENTRADA ESCALONADA ENTRE AS CONTAS — MAS NUNCA A CUSTA DA JANELA.
+    #
+    # Todas as contas aplicam no MESMO segundo: o ramo do run.sh dispara no
+    # mesmo minuto para todas, e o modulo pede /enterGame na hora. Do lado do
+    # servidor sao N inscricoes simultaneas do mesmo IP — o mesmo padrao de
+    # rajada que ja obrigou a serializar o login.
+    #
+    # CORRECAO (conta saindo do evento): a primeira versao dormia antes de
+    # olhar o relogio. Cada modulo RE-VERIFICA a janela por dentro — o
+    # king_start so age em 12:2[5-9] —, entao uma conta que entrasse em
+    # 12:29:52 acordava em 12:30:01 e o modulo devolvia sem fazer nada. Em
+    # seguida o evento_espera assumia e ficava chamando descansar por dez
+    # minutos: no painel a conta aparecia na Pagina Principal bem no meio do
+    # evento, como se tivesse abandonado.
+    #
+    # Agora o deslocamento e limitado pelo tempo que AINDA RESTA de janela,
+    # com 5 segundos de folga. Perto do fim ele simplesmente nao acontece.
+    _ed_resta=$(( _ed_f * 60 - _ed_s - 5 ))
+    _ed_esp=$(( $$ % 10 ))
+    [ "$_ed_esp" -gt "$_ed_resta" ] && _ed_esp=0
+    [ "$_ed_esp" -gt 0 ] && sleep "$_ed_esp"
+
+    # O "- _ed_esp" desconta a espera: o _ed_f foi medido antes de dormir.
+    echo $(( `date +%s` + _ed_f * 60 - _ed_esp )) > "$TMP/em_evento" 2>/dev/null
+    unset _ed_m _ed_s _ed_f _ed_resta _ed_esp
 }
 
 # Segura a conta ate o evento acabar. Volta na hora se o modulo ja tiver

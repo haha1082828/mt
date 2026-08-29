@@ -117,6 +117,13 @@ clanfight_fight() {
 }
 
 clanfight_start() {
+  # CHAVE COM ERRO DE DIGITACAO, E NINGUEM A LIA.
+  #
+  # O config.cfg trazia "FUNC_clan_figth" (figth, nao fight) desde sempre, e
+  # nenhum arquivo do projeto procurava por esse nome — nem pelo certo. Quem
+  # desligasse o Torneio dos Clas no config continuava entrando no evento.
+  # O nome foi corrigido e passa a ser respeitado aqui.
+  [ "${FUNC_clan_fight:-y}" = "y" ] || return 0
   cd "$TMP" || return 1
   case `date +%H:%M` in
   10:5[5-9]|18:5[5-9])

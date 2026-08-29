@@ -25,7 +25,7 @@ cd ~ && git clone https://github.com/haha1082828/mt.git && cd mt
 ```
 
 ```bash
-sha256sum -c .integrity --quiet && echo "Scripts integros"
+chmod +x ./*.sh
 ```
 
 ```bash
@@ -35,7 +35,6 @@ sha256sum -c .integrity --quiet && echo "Scripts integros"
 ```bash
 ./play.sh
 ```
-
 
 > Vá também em **Configurações → Bateria → Termux** e marque **"Sem restrições"**.
 ---
@@ -55,7 +54,7 @@ git clone https://github.com/haha1082828/mt.git && cd mt
 ```
 
 ```bash
-sha256sum -c .integrity --quiet && echo "Scripts integros"
+chmod +x ./*.sh
 ```
 
 ```bash
@@ -65,7 +64,6 @@ sha256sum -c .integrity --quiet && echo "Scripts integros"
 ```bash
 ./play.sh
 ```
-
 
 > **Evite instalar em `/mnt/c`.** Diretórios do Windows podem impedir que o Linux aplique as permissões corretamente, deixando o arquivo de credenciais exposto. Use `pwd` para conferir o caminho; ele deve começar por `/home/`.
 
@@ -83,7 +81,7 @@ cd ~ && git clone https://github.com/haha1082828/mt.git && cd mt
 ```
 
 ```bash
-sha256sum -c .integrity --quiet && echo "Scripts integros"
+chmod +x ./*.sh
 ```
 
 ```bash
@@ -93,7 +91,6 @@ sha256sum -c .integrity --quiet && echo "Scripts integros"
 ```bash
 ./play.sh
 ```
-
 
 > **Limitação do iOS:** os aplicativos podem ser suspensos quando ficam em segundo plano. Assim, o bot pode parar ao sair do iSH ou bloquear a tela. Para execução contínua, dê preferência ao Termux ou WSL.
 ---
@@ -121,7 +118,7 @@ sha256sum -c .integrity --quiet && echo "Scripts integros"
 ## Atualizando o projeto
 
 ```bash
-cd ~/mt && ./stop.sh && git pull && sha256sum -c .integrity --quiet && ./play.sh
+cd ~/mt && ./stop.sh && git pull && ./play.sh
 ```
 
 As contas já cadastradas e os arquivos armazenados em `~/.twm` permanecem intactos; a atualização altera somente os scripts.
@@ -180,14 +177,3 @@ As contas já cadastradas e os arquivos armazenados em `~/.twm` permanecem intac
 - `./lerstats.sh` mostra a página crua que o bot lê, para comparar com o navegador quando um número não bate.
 
 ---
-
-## Verificação de integridade
-
-O arquivo `.integrity` contém os hashes SHA-256 usados para verificar os scripts.
-
-```bash
-cd ~/mt && sha256sum -c .integrity --quiet && echo "Nenhum script foi alterado"
-```
-
-Caso algum arquivo não corresponda ao hash esperado, restaure os arquivos com `git checkout -- . && git pull`.
-

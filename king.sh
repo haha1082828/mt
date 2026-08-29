@@ -1,7 +1,7 @@
 # shellcheck disable=SC2148
 king_fight() {
   cd "$TMP" || return 1
-  LA=5
+  LA=4
   HPER="38"
   RPER=5
 

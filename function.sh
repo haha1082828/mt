@@ -160,7 +160,7 @@ request_update() {
 config_defaults() {
     cat <<'EOF'
 FUNC_check_rewards=y
-FUNC_use_elixir=y
+FUNC_use_elixir=n
 FUNC_use_blessing=n
 FUNC_blessing_gold_min=0
 FUNC_trade=y
@@ -172,9 +172,9 @@ FUNC_clan_fight=y
 FUNC_collect_mission_rewards=y
 FUNC_pause_weekends=n
 FUNC_auto_events=y
-FUNC_clan_missions=y
-FUNC_clan_quests=y
-FUNC_clan_help=y
+FUNC_clan_missions=n
+FUNC_clan_quests=n
+FUNC_clan_help=n
 FUNC_quest_force_gold=n
 FUNC_quest_gold_min=1200
 FUNC_arena_min=30

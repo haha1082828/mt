@@ -1,15 +1,11 @@
 #!/bin/sh
-# setup.sh - Gerenciamento de contas do TWM Multi-contas (Parte 1 de 2)
+# setup.sh - Gerenciamento de contas do TWM Multi-contas (Completo)
 
 # CORRECAO (seguranca): sem umask o accounts.conf nascia 644 (legivel por
 # qualquer processo do mesmo UID no Termux).
 umask 077
 
 # Resolve o caminho real do script, seguindo links simbolicos.
-#
-# CORRECAO: era so "dirname $0". Chamado por um link simbolico (ou por um
-# atalho em $PREFIX/bin), o TWMDIR apontava para a pasta do LINK e nao para
-# a do repositorio — e o accounts.conf gravado era outro.
 _self="$0"
 _hops=0
 while [ -L "$_self" ] && [ "$_hops" -lt 20 ]; do
@@ -25,17 +21,6 @@ TWMDIR=$(cd "$_dir" && pwd -P)
 unset _dir _self _link _hops
 
 # Localiza o arquivo de contas — MESMA regra do play.sh.
-#
-# CORRECAO: o caminho vinha exclusivamente do diretorio do script, e as
-# duas ferramentas podiam terminar em arquivos diferentes. Com mais de uma
-# copia do repositorio no aparelho — o caso mais comum e clonar de novo
-# depois de um problema — este menu anunciava "Contas cadastradas: 0"
-# enquanto o ./play.sh subia as contas normalmente, sem nenhuma pista de
-# que estavam lendo arquivos distintos.
-#
-# Agora, se o arquivo local nao existir, os lugares conhecidos sao
-# procurados antes de desistir, e o caminho em uso e sempre exibido no
-# menu. Um cadastro novo continua indo para o diretorio do repositorio.
 resolve_accounts_file() {
     if [ -s "$TWMDIR/accounts.conf" ]; then
         printf '%s' "$TWMDIR/accounts.conf"
@@ -60,9 +45,6 @@ ACCOUNTS_FILE=$(resolve_accounts_file)
 . "$TWMDIR/session_check.sh"
 
 # Paleta sorteada a cada abertura do menu.
-# A semente vem do PID e dos segundos do relogio, entao o conjunto de
-# cores muda a cada execucao sem depender de $RANDOM (que nao existe
-# em sh/dash/toybox).
 _seed=$(( ($$ + $(date +%s)) % 6 ))
 case "$_seed" in
     0) A1=' \033[1;36m'; A2=' \033[1;34m' ;;
@@ -83,9 +65,6 @@ RESET=' \033[0m'
 
 # ============================================================
 #  SOMENTE SERVIDOR BR (furiadetitas.net)
-#  O suporte aos outros 12 servidores foi removido a pedido.
-#  O campo de servidor continua no accounts.conf (sempre "1")
-#  para nao quebrar cadastros existentes.
 # ============================================================
 server_url()    { case "$1" in 1) echo "furiadetitas.net" ;; esac; }
 server_tag()    { case "$1" in 1) echo "BR" ;; esac; }
@@ -111,7 +90,6 @@ show_menu() {
     printf " \033[1;92mDRAGONS \033[0m ▸ "
 }
 
-
 list_accounts() {
     clear
     printf "${GREEN}🐉 DRAGONS${RESET}  ${WHITE}CONTAS CADASTRADAS${RESET}\n${GRAY}────────────────────────────────────────────${RESET}\n\n"
@@ -132,12 +110,9 @@ list_accounts() {
     read -r _d
 }
 
-# Servidor unico: nao ha o que escolher.
 show_servers() {
     printf "\n${CYAN}Servidor: BR - furiadetitas.net${RESET}\n"
 }
-
-# setup.sh - Gerenciamento de contas do TWM Multi-contas (Parte 2 de 2)
 
 add_account() {
     clear
@@ -152,15 +127,12 @@ add_account() {
     read -r user
     user=$(printf %s "$user" | tr -d '[:cntrl:]')
 
-    # CORRECAO: nao havia validacao. Um "|" no nome corrompe o formato
-    # do accounts.conf e uma "/" quebra o caminho do diretorio da conta.
     case "$user" in
         *"|"*) printf "${RED}Nome nao pode conter | ${RESET}\n"; sleep 2; return ;;
         */*)   printf "${RED}Nome nao pode conter / ${RESET}\n"; sleep 2; return ;;
     esac
     [ -z "$user" ] && printf "${RED}Usuario vazio.${RESET}\n" && sleep 2 && return
 
-    # Verifica duplicata
     if [ -f "$ACCOUNTS_FILE" ] && grep -q "^${srv}|${user}|" "$ACCOUNTS_FILE" 2>/dev/null; then
         printf "${RED}Conta [%s] %s ja existe.${RESET}\n" "$tag" "$user"
         sleep 2; return
@@ -173,7 +145,6 @@ add_account() {
 
     printf "Testando login em %s...\n" "$url"
 
-    # O servidor IN so atende em HTTP (porta 443 recusa conexao).
     if [ "$(server_scheme "$srv")" = "http" ]; then
         printf "${RED}AVISO: este servidor nao suporta HTTPS.${RESET}\n"
         printf "A senha trafegara em texto claro. Continuar? (y/n): "
@@ -233,7 +204,6 @@ remove_account() {
     [ "$choice" -lt 1 ] || [ "$choice" -gt "$total" ] && \
         printf "${RED}Invalido.${RESET}\n" && sleep 2 && return
 
-    # Extrai a linha escolhida (apenas linhas validas)
     line=$(grep '|' "$ACCOUNTS_FILE" | sed -n "${choice}p")
     srv=$(echo "$line" | cut -d'|' -f1)
     user=$(echo "$line" | cut -d'|' -f2)
@@ -243,9 +213,6 @@ remove_account() {
     read -r confirm
     case "$confirm" in
         y|Y)
-            # Para somente o worker desta conta antes de remove-la do cadastro.
-            # O play.sh so podera considera-la removida depois que o cadastro
-            # deixar de conter a conta; por isso a parada e feita primeiro.
             acc_id="${tag}_${user}"
             pid_file="$STATUS_DIR/${acc_id}.pid"
             pid=$(cat "$pid_file" 2>/dev/null)
@@ -277,9 +244,6 @@ remove_account() {
                 unset _stop_wait
             fi
 
-            # CORRECAO: "grep -v" trata o nome como REGEX. Um nome com
-            # metacaractere (., *, [) removeria a conta errada. O awk abaixo
-            # compara os campos 1 e 2 como texto literal.
             awk -F'|' -v s="$srv" -v u="$user" '!($1==s && $2==u)' \
                 "$ACCOUNTS_FILE" > "$ACCOUNTS_FILE.tmp" && \
                 mv "$ACCOUNTS_FILE.tmp" "$ACCOUNTS_FILE"
@@ -346,11 +310,44 @@ test_account() {
 update_script() {
     clear
     printf "${GREEN}🐉 DRAGONS${RESET}  ${WHITE}ATUALIZAR SCRIPT${RESET}\n${GRAY}────────────────────────────────────────────${RESET}\n\n"
-    printf "${GOLD}Aplicando atualizações e reiniciando o bot...${RESET}\n\n"
+    printf "${GOLD}Baixando atualizações do repositório...${RESET}\n\n"
     
-    cd ~/mt && ./stop.sh && git reset --hard HEAD && git pull && chmod +x ./*.sh && ./setup.sh
-    
-    exit 0
+    # 1. Acessa de forma dinâmica o diretório onde o repositório realmente está
+    if ! cd "$TWMDIR"; then
+        printf "${RED}Erro: Diretório não encontrado (${TWMDIR}).${RESET}\n"
+        sleep 3
+        return
+    fi
+
+    # 2. Puxa a atualização do repositório via git
+    if [ -d ".git" ]; then
+        git reset --hard HEAD
+        if ! git pull; then
+            printf "${RED}Erro ao baixar a atualização. Verifique sua conexão.${RESET}\n"
+            sleep 3
+            return
+        fi
+    else
+        printf "${RED}Aviso: Esta pasta não é um repositório Git válido.${RESET}\n"
+        sleep 3
+        return
+    fi
+
+    # 3. Dá permissão de execução para todos os scripts .sh
+    chmod +x ./*.sh 2>/dev/null
+    printf "${GREEN}[OK] Permissões aplicadas a todos os scripts!${RESET}\n"
+
+    # 4. Executa o stop.sh para parar execuções anteriores com segurança
+    if [ -f "./stop.sh" ]; then
+        printf "${GOLD}Executando ./stop.sh...${RESET}\n"
+        ./stop.sh
+    fi
+
+    printf "${GREEN}Atualização concluída com sucesso! Reiniciando...${RESET}\n"
+    sleep 2
+
+    # 5. Reinicia o painel abrindo o setup atualizado de forma limpa
+    exec "$TWMDIR/setup.sh"
 }
 
 # Loop principal

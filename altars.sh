@@ -109,3 +109,37 @@ altars_fight() {
   sleep 10s
   [ -t 1 ] && clear
 }
+
+altars_start() {
+  case `date +%H:%M` in
+  (13:5[5-9]|20:5[5-9])
+    (
+      run_curl_exec "$URL/train" | grep -o -E '\(([0-9]+)\)' | sed 's/[()]//g' > "$TMP/FULL"
+    ) </dev/null > /dev/null 2>&1 &
+    time_exit 17
+
+    fetch_page "/altars/?close=reward" "$TMP/src.html"
+    fetch_page "/altars/enterFight" "$TMP/src.html"
+    printf "Ancient Altars will be started...\n"
+
+    until (case `date +%M` in (55|56|57|58|59) exit 1;; esac); do
+      sleep 2
+    done
+
+    fetch_page "/altars/enterFight" "$TMP/src.html"
+    printf "Altars will be started...\n"
+    link_acao "$TMP/src.html" altars > "$TMP/ACCESS" 2>/dev/null
+    printf " Entering...\n"
+    printf " Waiting...\n"
+    BREAK=$(($(date +%s) + 30))
+    until grep -q -o 'altars/dodge/' "$TMP/ACCESS" || [ "$(date +%s)" -gt "$BREAK" ]; do
+      printf "%s\n ...\n%s\n" "$URL" "`cat "$TMP/ACCESS"`"
+      fetch_page "/altars" "$TMP/src.html"
+      link_acao "$TMP/src.html" altars > "$TMP/ACCESS" 2>/dev/null
+      sleep 3
+    done
+    altars_fight
+    ;;
+  esac
+}
+

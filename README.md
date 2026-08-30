@@ -118,7 +118,7 @@ chmod +x ./*.sh
 ## Atualizando o projeto
 
 ```bash
-cd ~/mt && git reset --hard HEAD && git pull && chmod +x ./*.sh && ./stop.sh && ./setup.sh
+cd ~/mt && git reset --hard HEAD && git pull && chmod +x ./*.sh && ./stop.sh
 ```
 
 As contas já cadastradas e os arquivos armazenados em `~/.twm` permanecem intactos; a atualização altera somente os scripts.

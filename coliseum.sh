@@ -1,5 +1,5 @@
-#!/bin/sh
-# V2 conservadora: funcao preservada; unica otimização é cache local de timestamp.
+#!/system/bin/sh
+
 coliseum_fight() {
     # Arquivos de batalha gravados no diretorio da conta (sem mktemp)
     src_ram="$TMP/col_src"
@@ -173,5 +173,47 @@ coliseum_fight() {
         printf "The battle is over!\n"
     else
         printf "It was not possible to start the battle at this time.\n"
+    fi
+}
+
+coliseum_start() {
+    if [ "$FUNC_coliseum" = "n" ]; then
+        return
+    fi
+
+    if case `date +%H:%M` in
+        (09:2[4-9]|09:5[4-9]|10:1[0-4]|10:2[4-9]|10:5[4-9]|12:2[4-9]|13:5[4-9]|14:5[4-9]|15:5[4-9]|16:1[0-4]|16:2[4-9]|18:5[4-9]|20:5[4-9]|21:2[4-9]|21:5[4-9]|22:2[4-9])
+            exit 1
+            ;;
+        esac
+    then
+        if echo "$RUN" | grep -q -E '[-]boot'; then
+            (
+                run_curl_exec "${URL}/quest/" > "$TMP/SRC"
+            ) </dev/null > /dev/null 2>&1 &
+            time_exit 20
+
+            while grep -q -o -E '/coliseum/[?]quest_t[=]quest&quest_id[=]11&qz[=][a-z0-9]+' "$TMP/SRC"; do
+                coliseum_fight
+                (
+                    run_curl_exec "${URL}/quest/" > "$TMP/SRC"
+                ) </dev/null > /dev/null 2>&1 &
+                time_exit 20
+
+                ENDQUEST=`grep -o -E '/quest/end/11[?]r[=][A-Za-z0-9]+' "$TMP/SRC"`
+                if [ -n "$ENDQUEST" ]; then
+                    (
+                        run_curl_exec "${URL}${ENDQUEST}" > "$TMP/SRC"
+                    ) </dev/null > /dev/null 2>&1 &
+                    time_exit 20
+                fi
+            done
+
+        elif echo "$RUN" | grep -q -E '[-]cl'; then
+            coliseum_fight
+        fi
+    else
+        printf "Battle or event time...\n"
+        sleep 5s
     fi
 }

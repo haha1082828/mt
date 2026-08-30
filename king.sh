@@ -1,5 +1,5 @@
-#!/bin/sh
-# V2 conservadora: funcao preservada; unica otimização é cache local de timestamp.
+#!/system/bin/sh
+
 king_fight() {
   cd "$TMP" || return 1
   LA=4
@@ -254,4 +254,44 @@ king_fight() {
   printf "King ok\n"
   sleep 10s
   [ -t 1 ] && clear
+}
+
+king_start() {
+  case `date +%H:%M` in
+  (12:2[5-9]|16:2[5-9]|22:2[5-9])
+    (
+      run_curl_exec "$URL/train" | grep -o -E '\(([0-9]+)\)' | sed 's/[()]//g' > "$TMP/FULL"
+    ) </dev/null > /dev/null 2>&1 &
+    time_exit 17
+    (
+      run_curl_exec "$URL/king/enterGame" > "$TMP/SRC"
+    ) </dev/null > /dev/null 2>&1 &
+    time_exit 17
+    printf "King of the Immortals will be started...\n"
+    until (case `date +%M` in (2[5-9]) exit 1;; esac); do
+      sleep 3
+    done
+    (
+      run_curl_exec "$URL/king/enterGame" > "$TMP/SRC"
+    ) </dev/null > /dev/null 2>&1 &
+    time_exit 17
+    printf "\nKing\n%s\n" "$URL"
+    link_acao "$TMP/SRC" king > "$TMP/ACCESS" 2>/dev/null
+    printf " Entering...\n%s\n" "`cat "$TMP/ACCESS"`"
+    printf " Waiting...\n"
+    cat "$TMP/SRC" | grep -o 'king/kingatk/' > "$TMP/EXIT" 2>/dev/null
+    BREAK=$(($(date +%s) + 30))
+    until [ -s "$TMP/EXIT" ] || [ "$(date +%s)" -gt "$BREAK" ]; do
+      printf " ...\n%s\n" "`cat "$TMP/ACCESS"`"
+      (
+        run_curl_exec "${URL}$(cat "$TMP/ACCESS")" > "$TMP/SRC"
+      ) </dev/null > /dev/null 2>&1 &
+      time_exit 17
+      cat "$TMP/SRC" | sed 's/href=/\n/g' | grep '/king/' | head -n 1 | awk -F"[']" '{ print $2 }' > "$TMP/ACCESS" 2>/dev/null
+      cat "$TMP/SRC" | grep -o 'king/kingatk/' > "$TMP/EXIT" 2>/dev/null
+      sleep 2
+    done
+    king_fight
+    ;;
+  esac
 }

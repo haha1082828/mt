@@ -1,11 +1,8 @@
-#
-#/clanfight/dodge/?r=0
-#/clanfight/attack/?r=0
-#/clanfight/attackrandom/?r=0
-#/clanfight/heal/?r=0
-#/clanfight/stone/?r=0
-#/clanfight/grass/?r=0
-#/clanfight/?out_gate
+#!/bin/bash
+
+# Módulo de batalha — carregado pelo script principal.
+# As dependências/globais são fornecidas pelo ambiente principal.
+
 clanfight_fight() {
   cd "$TMP" || return 1
   LA=4
@@ -49,19 +46,7 @@ clanfight_fight() {
   FIGHT_BREAK=$(($(date +%s) + 600))
   until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$FIGHT_BREAK" ]; do
     cf_access
-    if ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
-       [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && \
-       [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ] && \
-       awk -v ush="$(cat HP)" -v oldhp="$(cat old_HP)" 'BEGIN { exit !(ush < oldhp) }'; then
-      (
-        run_curl_exec "${URL}$(cat DODGE)" > "$TMP/SRC"
-      ) </dev/null > /dev/null 2>&1 &
-      time_exit 17
-      cf_access
-      cat HP > old_HP
-      date +%s > last_dodge
-
-    elif awk -v ush="$(cat HP)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
+    if awk -v ush="$(cat HP)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
          [ "$(($(date +%s) - $(cat last_heal)))" -gt 90 ] && \
          [ "$(($(date +%s) - $(cat last_heal)))" -lt 300 ]; then
       (
@@ -77,6 +62,18 @@ clanfight_fight() {
       cat HP > FULL
       cat HP > old_HP
       date +%s > last_heal
+    elif ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
+       [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && \
+       [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ] && \
+       awk -v ush="$(cat HP)" -v oldhp="$(cat old_HP)" 'BEGIN { exit !(ush < oldhp) }'; then
+      (
+        run_curl_exec "${URL}$(cat DODGE)" > "$TMP/SRC"
+      ) </dev/null > /dev/null 2>&1 &
+      time_exit 17
+      cf_access
+      cat HP > old_HP
+      date +%s > last_dodge
+
 
     elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
          ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
@@ -114,53 +111,4 @@ clanfight_fight() {
   printf "ClanFight ok\n"
   sleep 10s
   [ -t 1 ] && clear
-}
-
-clanfight_start() {
-  # CHAVE COM ERRO DE DIGITACAO, E NINGUEM A LIA.
-  #
-  # O config.cfg trazia "FUNC_clan_figth" (figth, nao fight) desde sempre, e
-  # nenhum arquivo do projeto procurava por esse nome — nem pelo certo. Quem
-  # desligasse o Torneio dos Clas no config continuava entrando no evento.
-  # O nome foi corrigido e passa a ser respeitado aqui.
-  [ "${FUNC_clan_fight:-y}" = "y" ] || return 0
-  cd "$TMP" || return 1
-  case `date +%H:%M` in
-  10:5[5-9]|18:5[5-9])
-    (
-      run_curl_exec "$URL/train" | grep -o -E '\(([0-9]+)\)' | sed 's/[()]//g' > "$TMP/FULL"
-    ) </dev/null > /dev/null 2>&1 &
-    time_exit 17
-    (
-      run_curl_exec "$URL/clanfight/?close=reward" > "$TMP/SRC"
-    ) </dev/null > /dev/null 2>&1 &
-    time_exit 17
-    (
-      run_curl_exec "$URL/clanfight/enterFight" > "$TMP/SRC"
-    ) </dev/null > /dev/null 2>&1 &
-    time_exit 17
-    printf "The clan tournament will be started...\n"
-    while (case `date +%M:%S` in (59:[3-5][0-9]) exit 1;; esac); do
-      sleep 3
-    done
-    (
-      run_curl_exec "$URL/clanfight/enterFight" > "$TMP/SRC"
-    ) </dev/null > /dev/null 2>&1 &
-    time_exit 17
-    link_acao "$TMP/SRC" clanfight > "$TMP/ACCESS" 2>/dev/null
-    printf " Entering...\n"
-    printf " Waiting...\n"
-    BREAK=$(($(date +%s) + 60))
-    until grep -q -o 'clanfight/dodge/' "$TMP/ACCESS" || [ "$(date +%s)" -gt "$BREAK" ]; do
-      printf " ...\n%s\n" "`cat "$TMP/ACCESS"`"
-      (
-        run_curl_exec "${URL}/clanfight/" > "$TMP/SRC"
-      ) </dev/null > /dev/null 2>&1 &
-      time_exit 17
-      link_acao "$TMP/SRC" clanfight > "$TMP/ACCESS" 2>/dev/null
-      sleep 3
-    done
-    clanfight_fight
-    ;;
-  esac
 }

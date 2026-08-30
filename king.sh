@@ -146,13 +146,14 @@ king_fight() {
         _last_atk=`date +%s`; echo "$_last_atk" > last_atk
 
       else
-        # Aguarda cooldown — apenas atualiza pagina
+        # Aguarda cooldown — atualiza pagina com verificacao mais responsiva
+        # Mantemos o time_exit e toda a logica de combate intactos.
         (
           run_curl_exec "${URL}/king" > "$TMP/SRC"
         ) </dev/null > /dev/null 2>&1 &
         time_exit 17
         cl_access
-        sleep 1s
+        sleep 0.5s
       fi
 
     # ── MODO ESPERA: 1% < HP <= 10% ────────────────────────────────────────

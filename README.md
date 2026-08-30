@@ -13,7 +13,7 @@ pkg update && pkg upgrade -y
 ```
 
 ```bash
-pkg install git curl wget jq util-linux -y
+pkg install git curl wget jq util-linux -y && pkg install coreutils -y && pkg install procps -y &&  pkg install tmux -y 
 ```
 
 ```bash

@@ -112,3 +112,52 @@ clanfight_fight() {
   sleep 10s
   [ -t 1 ] && clear
 }
+
+clanfight_start() {
+  # CHAVE COM ERRO DE DIGITACAO, E NINGUEM A LIA.
+  #
+  # O config.cfg trazia "FUNC_clan_figth" (figth, nao fight) desde sempre, e
+  # nenhum arquivo do projeto procurava por esse nome — nem pelo certo. Quem
+  # desligasse o Torneio dos Clas no config continuava entrando no evento.
+  # O nome foi corrigido e passa a ser respeitado aqui.
+  [ "${FUNC_clan_fight:-y}" = "y" ] || return 0
+  cd "$TMP" || return 1
+  case `date +%H:%M` in
+  10:5[5-9]|18:5[5-9])
+    (
+      run_curl_exec "$URL/train" | grep -o -E '\(([0-9]+)\)' | sed 's/[()]//g' > "$TMP/FULL"
+    ) </dev/null > /dev/null 2>&1 &
+    time_exit 17
+    (
+      run_curl_exec "$URL/clanfight/?close=reward" > "$TMP/SRC"
+    ) </dev/null > /dev/null 2>&1 &
+    time_exit 17
+    (
+      run_curl_exec "$URL/clanfight/enterFight" > "$TMP/SRC"
+    ) </dev/null > /dev/null 2>&1 &
+    time_exit 17
+    printf "The clan tournament will be started...\n"
+    while (case `date +%M:%S` in (59:[3-5][0-9]) exit 1;; esac); do
+      sleep 3
+    done
+    (
+      run_curl_exec "$URL/clanfight/enterFight" > "$TMP/SRC"
+    ) </dev/null > /dev/null 2>&1 &
+    time_exit 17
+    link_acao "$TMP/SRC" clanfight > "$TMP/ACCESS" 2>/dev/null
+    printf " Entering...\n"
+    printf " Waiting...\n"
+    BREAK=$(($(date +%s) + 60))
+    until grep -q -o 'clanfight/dodge/' "$TMP/ACCESS" || [ "$(date +%s)" -gt "$BREAK" ]; do
+      printf " ...\n%s\n" "`cat "$TMP/ACCESS"`"
+      (
+        run_curl_exec "${URL}/clanfight/" > "$TMP/SRC"
+      ) </dev/null > /dev/null 2>&1 &
+      time_exit 17
+      link_acao "$TMP/SRC" clanfight > "$TMP/ACCESS" 2>/dev/null
+      sleep 3
+    done
+    clanfight_fight
+    ;;
+  esac
+}

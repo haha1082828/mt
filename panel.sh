@@ -348,8 +348,10 @@ combate_log() {
                 }
             }
 
+            # O HTML de batalha pode conservar eventos antigos.
+            # Sempre mostramos os eventos mais recentes, não os primeiros do histórico.
             achou = 0
-            for (i = 1; i <= n && achou < lim; i++) {
+            for (i = n; i >= 1 && achou < lim; i--) {
                 t = limpa(linha[i])
                 if (length(t) < 6) continue
 
@@ -369,9 +371,12 @@ combate_log() {
                     if (p > larg / 2) corte = substr(corte, 1, p - 1)
                     t = corte "…"
                 }
-                print pre cor t cFim
+                # Guardamos e imprimimos depois para manter a ordem cronológica.
                 achou++
+                log[achou] = pre cor t cFim
             }
+
+            for (i = achou; i >= 1; i--) print log[i]
         }
         function limpa(x) {
             gsub(/[ \t\r]+/, " ", x)

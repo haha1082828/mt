@@ -1,3 +1,11 @@
+#
+#/clandmgfight/dodge/?r=0
+#/clandmgfight/attack/?r=0
+#/clandmgfight/attackrandom/?r=0
+#/clandmgfight/heal/?r=0
+#/clandmgfight/stone/?r=0
+#/clandmgfight/grass/?r=0
+#/clandmgfight/?out_gate
 clandmgfight_fight() {
   cd "$TMP" || return 1
   LA=4
@@ -17,6 +25,8 @@ clandmgfight_fight() {
     awk -v ush="$(cat HP)" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }' > RHP
     awk -v ush="$(cat FULL)" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
     if grep -q -o '/dodge/' "$TMP/SRC"; then
+      # A pagina respondeu com a luta: sessao confirmada.
+      sessao_marcar
       printf "Em batalha clandmg - HP: %s\n" "`cat HP`"
     else
       echo 1 > BREAK_LOOP
@@ -64,6 +74,7 @@ clandmgfight_fight() {
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
       cf_access
+      cat HP > FULL
       cat HP > old_HP
       date +%s > last_heal
 
@@ -94,7 +105,7 @@ clandmgfight_fight() {
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
       cf_access
-      sleep 0.5s
+      sleep 1s
     fi
   done
 
@@ -122,14 +133,25 @@ clandmgfight_start() {
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
     printf "The clan duel will be started...\n"
-    while (case `date +%M:%S` in (29:[3-5][0-9]) exit 1;; ([4-5][5-9]:[0-5][0-9]) return;; esac); do
+    # CORRECAO: o ramo de desistencia era "return" DENTRO do subshell da
+    # condicao. O return so encerra o subshell — nao a funcao —, entao a
+    # janela vencida nao abortava nada: o laco apenas terminava e o codigo
+    # seguia inscrevendo e lutando fora de hora. Agora a verificacao e feita
+    # no corpo do laco, onde o return realmente sai do clandmg_start.
+    while (case `date +%M:%S` in (29:[3-5][0-9]) exit 1;; esac); do
+      case `date +%M:%S` in
+        [4-5][5-9]:[0-5][0-9])
+          printf "Masmorra: janela vencida - desistindo\n"
+          return 1
+          ;;
+      esac
       sleep 3
     done
     (
       run_curl_exec "$URL/clandmgfight/enterFight" > "$TMP/SRC"
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
-    grep -o -E '(/[a-z]+(/[a-z]+/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+|/))' "$TMP/SRC" | sed -n '1p' > "$TMP/ACCESS" 2>/dev/null
+    link_acao "$TMP/SRC" clandmgfight > "$TMP/ACCESS" 2>/dev/null
     printf " Entering...\n"
     printf " Waiting...\n"
     BREAK=$(($(date +%s) + 60))
@@ -139,7 +161,7 @@ clandmgfight_start() {
         run_curl_exec "${URL}/clandmgfight/" > "$TMP/SRC"
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
-      grep -o -E '(/clandmgfight(/[a-z]+/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+|/))' "$TMP/SRC" | sed -n '1p' > "$TMP/ACCESS" 2>/dev/null
+      link_acao "$TMP/SRC" clandmgfight > "$TMP/ACCESS" 2>/dev/null
       sleep 3
     done
     clandmgfight_fight
@@ -153,7 +175,7 @@ clandmgfight_start() {
       run_curl_exec "$URL/clandmgfight/enterFight" > "$TMP/SRC"
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
-    grep -o -E '(/[a-z]+(/[a-z]+/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+|/))' "$TMP/SRC" | sed -n '1p' > "$TMP/ACCESS" 2>/dev/null
+    link_acao "$TMP/SRC" clandmgfight > "$TMP/ACCESS" 2>/dev/null
     printf " Entering...\n"
     printf " Waiting...\n"
     BREAK=$(($(date +%s) + 60))
@@ -163,7 +185,7 @@ clandmgfight_start() {
         run_curl_exec "${URL}/clandmgfight/" > "$TMP/SRC"
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
-      grep -o -E '(/clandmgfight(/[a-z]+/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+|/))' "$TMP/SRC" | sed -n '1p' > "$TMP/ACCESS" 2>/dev/null
+      link_acao "$TMP/SRC" clandmgfight > "$TMP/ACCESS" 2>/dev/null
       sleep 3
     done
     clandmgfight_fight
@@ -173,11 +195,3 @@ clandmgfight_start() {
     ;;
   esac
 }
-#
-#/clanfight/dodge/?r=0
-#/clanfight/attack/?r=0
-#/clanfight/attackrandom/?r=0
-#/clanfight/heal/?r=0
-#/clanfight/stone/?r=0
-#/clanfight/grass/?r=0
-#/clanfight/?out_gate

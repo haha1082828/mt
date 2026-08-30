@@ -124,7 +124,7 @@ list_accounts() {
             [ -z "$user" ] && continue
             url=$(server_url "$srv")
             tag=$(server_tag "$srv")
-            printf "${GOLD}%d)${RESET} [%s] %-20s %s\n" "$n" "$tag" "$url"
+            printf "${GOLD}%d)${RESET} [%s] %-20s\n" "$n" "$tag" "$user"
             n=$((n + 1))
         done < "$ACCOUNTS_FILE"
     fi
@@ -243,6 +243,40 @@ remove_account() {
     read -r confirm
     case "$confirm" in
         y|Y)
+            # Para somente o worker desta conta antes de remove-la do cadastro.
+            # O play.sh so podera considera-la removida depois que o cadastro
+            # deixar de conter a conta; por isso a parada e feita primeiro.
+            acc_id="${tag}_${user}"
+            pid_file="$STATUS_DIR/${acc_id}.pid"
+            pid=$(cat "$pid_file" 2>/dev/null)
+            ours=0
+            case "$pid" in
+                ''|*[!0-9]*) ;;
+                *)
+                    if [ -r "/proc/$pid/cmdline" ]; then
+                        tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null \
+                            | grep -qE 'worker\.sh|twm\.sh' && ours=1
+                    elif kill -0 "$pid" 2>/dev/null; then
+                        ours=1
+                    fi
+                    ;;
+            esac
+            if [ "$ours" -eq 1 ]; then
+                printf "Parando worker de [%s] %s...\n" "$tag" "$user"
+                kill -TERM "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
+                _stop_wait=0
+                while kill -0 "$pid" 2>/dev/null && [ "$_stop_wait" -lt 2 ]; do
+                    sleep 1
+                    _stop_wait=$((_stop_wait + 1))
+                done
+                if kill -0 "$pid" 2>/dev/null; then
+                    kill -KILL "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null
+                fi
+                rm -f "$pid_file"
+                echo "stopped" > "$STATUS_DIR/${acc_id}.status"
+                unset _stop_wait
+            fi
+
             # CORRECAO: "grep -v" trata o nome como REGEX. Um nome com
             # metacaractere (., *, [) removeria a conta errada. O awk abaixo
             # compara os campos 1 e 2 como texto literal.

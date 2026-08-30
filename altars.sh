@@ -1,3 +1,5 @@
+#!/bin/sh
+# V2 conservadora: funcao preservada; unica otimização é cache local de timestamp.
 altars_fight() {
   cd "$TMP" || return 1
   apply_event
@@ -27,9 +29,10 @@ altars_fight() {
 
   cf_access
   : > BREAK_LOOP; cat HP > old_HP
-  echo $(($(date +%s) - 20)) > last_dodge
-  echo $(($(date +%s) - 90)) > last_heal
-  echo $(($(date +%s) - LA)) > last_atk
+  _fight_now=`date +%s`
+  echo $((_fight_now - 20)) > last_dodge
+  echo $((_fight_now - 90)) > last_heal
+  echo $((_fight_now - LA)) > last_atk
 
   # LIMITE DE TEMPO: BREAK_LOOP so e gravado quando a luta termina.
   # Se o estado nunca resolver (pagina muda, servidor devolve algo
@@ -37,33 +40,34 @@ altars_fight() {
   # travava naquela batalha. Teto de 10 minutos.
   FIGHT_BREAK=$(($(date +%s) + 600))
   until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$FIGHT_BREAK" ]; do
+    _fight_now=`date +%s`
     cf_access
     if ! grep -q -o 'txt smpl grey' "$TMP/src.html" && \
-       [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && \
-       [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ] && \
+       [ "$((_fight_now - $(cat last_dodge)))" -gt 20 ] && \
+       [ "$((_fight_now - $(cat last_dodge)))" -lt 300 ] && \
        awk -v ush="$(cat HP)" -v oldhp="$(cat old_HP)" 'BEGIN { exit !(ush < oldhp) }'; then
       (
         run_curl_exec "${URL}$(cat DODGE)" > "$TMP/src.html"
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
       cf_access
-      cat HP > old_HP; date +%s > last_dodge
+      cat HP > old_HP; printf "%s\n" "$_fight_now" > last_dodge
 
     elif awk -v ush="$(cat HP)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
-         [ "$(($(date +%s) - $(cat last_heal)))" -gt 90 ] && \
-         [ "$(($(date +%s) - $(cat last_heal)))" -lt 300 ]; then
+         [ "$((_fight_now - $(cat last_heal)))" -gt 90 ] && \
+         [ "$((_fight_now - $(cat last_heal)))" -lt 300 ]; then
       (
         run_curl_exec "${URL}$(cat HEAL)" > "$TMP/src.html"
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
       cf_access
       cat HP > old_HP
-      date +%s > last_heal
+      printf "%s\n" "$_fight_now" > last_heal
 
-    elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
+    elif awk -v latk="$_fight_now - $(cat last_atk)" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
          ! grep -q -o 'txt smpl grey' "$TMP/src.html" && \
          awk -v rhp="$(cat RHP)" -v enh="$(cat HP2)" 'BEGIN { exit !(rhp < enh) }' || \
-         awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
+         awk -v latk="$_fight_now - $(cat last_atk)" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
          ! grep -q -o 'txt smpl grey' "$TMP/src.html" && \
          grep -q -o "$(cat CLAN)" "$TMP/callies.txt"; then
       (
@@ -71,15 +75,15 @@ altars_fight() {
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
       cf_access
-      date +%s > last_atk
+      printf "%s\n" "$_fight_now" > last_atk
 
-    elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk > atktime) }'; then
+    elif awk -v latk="$_fight_now - $(cat last_atk)" -v atktime="$LA" 'BEGIN { exit !(latk > atktime) }'; then
       (
         run_curl_exec "${URL}$(cat ATK)" > "$TMP/src.html"
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
       cf_access
-      date +%s > last_atk
+      printf "%s\n" "$_fight_now" > last_atk
     else
       (
         run_curl_exec "${URL}/altars" > "$TMP/src.html"
@@ -97,37 +101,3 @@ altars_fight() {
   sleep 10s
   [ -t 1 ] && clear
 }
-
-altars_start() {
-  case `date +%H:%M` in
-  (13:5[5-9]|20:5[5-9])
-    (
-      run_curl_exec "$URL/train" | grep -o -E '\(([0-9]+)\)' | sed 's/[()]//g' > "$TMP/FULL"
-    ) </dev/null > /dev/null 2>&1 &
-    time_exit 17
-
-    fetch_page "/altars/?close=reward" "$TMP/src.html"
-    fetch_page "/altars/enterFight" "$TMP/src.html"
-    printf "Ancient Altars will be started...\n"
-
-    until (case `date +%M` in (55|56|57|58|59) exit 1;; esac); do
-      sleep 2
-    done
-
-    fetch_page "/altars/enterFight" "$TMP/src.html"
-    printf "Altars will be started...\n"
-    grep -o -E '(/altars(/[A-Za-z]+/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+|/))' "$TMP/src.html" | sed -n 1p > "$TMP/ACCESS" 2>/dev/null
-    printf " Entering...\n"
-    printf " Waiting...\n"
-    BREAK=$(($(date +%s) + 30))
-    until grep -q -o 'altars/dodge/' "$TMP/ACCESS" || [ "$(date +%s)" -gt "$BREAK" ]; do
-      printf "%s\n ...\n%s\n" "$URL" "`cat "$TMP/ACCESS"`"
-      fetch_page "/altars" "$TMP/src.html"
-      grep -o -E '(/altars(/[A-Za-z]+/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+|/))' "$TMP/src.html" | sed -n 1p > "$TMP/ACCESS" 2>/dev/null
-      sleep 3
-    done
-    altars_fight
-    ;;
-  esac
-}
-# shellcheck disable=SC2148

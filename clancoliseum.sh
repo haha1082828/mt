@@ -3,7 +3,7 @@ clancoliseum_fight() {
   full_ram="$TMP/ccol_full"
   cd "$TMP" || return 1
 
-  LA=4
+  LA=3
   HPER=48
   RPER=15
 

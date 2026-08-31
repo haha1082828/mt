@@ -1,5 +1,4 @@
 flagfight_fight() {
-  # Arquivos de batalha no diretorio da conta (sem mktemp)
   src_ram="$TMP/flag_src"
   full_ram="$TMP/flag_full"
 
@@ -17,13 +16,12 @@ flagfight_fight() {
     grep -o -E '(/[a-z]+/shield/[?]r[=][0-9]+)' "$src_ram" | sed -n 1p > SHIELD 2>/dev/null
     grep -o -E '([[:upper:]][[:lower:]]{0,20}( [[:upper:]][[:lower:]]{0,17})?)[[:space:]]\(' "$src_ram" | sed -n 's,\ [(],,;s,\ ,_,;2p' > CLAN 2>/dev/null
     grep -o -E '([[:upper:]][[:lower:]]{0,15}( [[:upper:]][[:lower:]]{0,13})?)[[:space:]][^[:alnum:]]s' "$src_ram" | sed -n 's,\ [<]s,,;s,\ ,_,;2p' > USER 2>/dev/null
-    grep -o -E "(hp)[^A-Za-z0-9]{1,4}[0-9]{1,6}" "$src_ram" | sed "s,hp[']\\/[>],,;s,\ ,," > USH 2>/dev/null
-    grep -o -E "(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}" "$src_ram" | sed -n 's,nbsp[;],,;s,\ ,,;1p' > ENH 2>/dev/null
+    grep -o -E "(hp)[^A-Za-z0-9]{1,4}[0-9]{1,6}" "$src_ram" | grep -o -E '[0-9]+' | head -n 1 > USH 2>/dev/null
+    grep -o -E "(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}" "$src_ram" | grep -o -E '[0-9]+' | head -n 1 > ENH 2>/dev/null
     awk -v ush="$(cat USH)" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }' > RHP
     awk -v ush="$(cat "$full_ram")" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
 
     if grep -q -o '/dodge/' "$src_ram"; then
-      # A pagina respondeu com a luta: sessao confirmada.
       sessao_marcar
       printf "Em batalha flagfight - HP: %s\n" "`cat USH`"
     else
@@ -40,10 +38,6 @@ flagfight_fight() {
   echo $(($(date +%s) - 90)) > last_heal
   echo $(($(date +%s) - LA)) > last_atk
 
-  # LIMITE DE TEMPO: BREAK_LOOP so e gravado quando a luta termina.
-  # Se o estado nunca resolver (pagina muda, servidor devolve algo
-  # inesperado), o laco ficava requisitando para sempre e a conta
-  # travava naquela batalha. Teto de 10 minutos.
   FIGHT_BREAK=$(($(date +%s) + 600))
   until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$FIGHT_BREAK" ]; do
     if awk -v ush="$(cat USH)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
@@ -58,7 +52,7 @@ flagfight_fight() {
       cat USH > old_HP
       date +%s > last_heal
 
-    elif ! grep -q -o 'txt smpl grey' "$TMP/src.html" && \
+    elif ! grep -q -o 'txt smpl grey' "$src_ram" && \
          [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && \
          [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ] && \
          awk -v ush="$(cat USH)" -v oldhp="$(cat old_HP)" 'BEGIN { exit !(ush < oldhp) }'; then
@@ -74,7 +68,7 @@ flagfight_fight() {
          ! grep -q -o 'txt smpl grey' "$src_ram" && \
          awk -v rhp="$(cat RHP)" -v enh="$(cat ENH)" 'BEGIN { exit !(rhp < enh) }' || \
          awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
-         ! grep -q -o 'txt smpl grey' "$TMP/src.html" && \
+         ! grep -q -o 'txt smpl grey' "$src_ram" && \
          grep -q -o "$(cat CLAN)" "$TMP/callies.txt"; then
       (
         run_curl_exec "${URL}$(cat ATKRND)" > "$src_ram"

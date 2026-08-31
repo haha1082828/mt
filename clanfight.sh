@@ -11,18 +11,17 @@ clanfight_fight() {
   awk -v ush="$(cat FULL)" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
 
   cf_access() {
-    grep -o -E '(/clanfight/[a-z]{0,4}at[a-z]{0,3}k/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$TMP/SRC" | sed -n '1p' > ATK 2>/dev/null
-    grep -o -E '(/clanfight/at[a-z]{0,3}k[a-z]{3,6}/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$TMP/SRC" | sed -n 1p > ATKRND 2>/dev/null
+    grep -o -E '(/[a-z]+/[a-z]{0,4}at[a-z]{0,3}k/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$TMP/SRC" | sed -n '1p' > ATK 2>/dev/null
+    grep -o -E '(/[a-z]+/at[a-z]{0,3}k[a-z]{3,6}/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$TMP/SRC" | sed -n 1p > ATKRND 2>/dev/null
     grep -o -E '(/clanfight/dodge/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$TMP/SRC" | sed -n 1p > DODGE 2>/dev/null
     grep -o -E '(/clanfight/heal/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$TMP/SRC" | sed -n 1p > HEAL 2>/dev/null
     grep -o -E '(/clanfight/grass/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$TMP/SRC" > GRASS 2>/dev/null
     grep -o -E '([[:upper:]][[:lower:]]{0,20}( [[:upper:]][[:lower:]]{0,17})?)[[:space:]]\(' "$TMP/SRC" | sed -n 's,\ [(],,;s,\ ,_,;2p' > CLAN 2>/dev/null
-    grep -o -E "(hp)[^A-Za-z0-9]{1,4}[0-9]{1,6}" "$TMP/SRC" | sed "s,hp[']\\/[>],,;s,\ ,," > HP 2>/dev/null
-    grep -o -E "(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}" "$TMP/SRC" | sed -n 's,nbsp[;],,;s,\ ,,;1p' > HP2 2>/dev/null
+    grep -o -E "(hp)[^A-Za-z0-9]{1,4}[0-9]{1,6}" "$TMP/SRC" | grep -o -E '[0-9]+' | head -n 1 > HP 2>/dev/null
+    grep -o -E "(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}" "$TMP/SRC" | grep -o -E '[0-9]+' | head -n 1 > HP2 2>/dev/null
     awk -v ush="$(cat HP)" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }' > RHP
     awk -v ush="$(cat FULL)" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
     if grep -q -o '/dodge/' "$TMP/SRC"; then
-      # A pagina respondeu com a luta: sessao confirmada.
       sessao_marcar
       printf "Em batalha clanfight - HP: %s\n" "`cat HP`"
     else
@@ -39,10 +38,6 @@ clanfight_fight() {
   echo $(($(date +%s) - 90)) > last_heal
   echo $(($(date +%s) - LA)) > last_atk
 
-  # LIMITE DE TEMPO: BREAK_LOOP so e gravado quando a luta termina.
-  # Se o estado nunca resolver (pagina muda, servidor devolve algo
-  # inesperado), o laco ficava requisitando para sempre e a conta
-  # travava naquela batalha. Teto de 10 minutos.
   FIGHT_BREAK=$(($(date +%s) + 600))
   until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$FIGHT_BREAK" ]; do
     cf_access
@@ -73,7 +68,6 @@ clanfight_fight() {
       cf_access
       cat HP > old_HP
       date +%s > last_dodge
-
 
     elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
          ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
@@ -114,12 +108,6 @@ clanfight_fight() {
 }
 
 clanfight_start() {
-  # CHAVE COM ERRO DE DIGITACAO, E NINGUEM A LIA.
-  #
-  # O config.cfg trazia "FUNC_clan_figth" (figth, nao fight) desde sempre, e
-  # nenhum arquivo do projeto procurava por esse nome — nem pelo certo. Quem
-  # desligasse o Torneio dos Clas no config continuava entrando no evento.
-  # O nome foi corrigido e passa a ser respeitado aqui.
   [ "${FUNC_clan_fight:-y}" = "y" ] || return 0
   cd "$TMP" || return 1
   case `date +%H:%M` in

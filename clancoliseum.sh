@@ -13,13 +13,12 @@ clancoliseum_fight() {
     grep -o -E '(/clancoliseum/dodge/[?]r[=][0-9]+)' "$src_ram" | sed -n 1p > DODGE 2>/dev/null
     grep -o -E '(/clancoliseum/heal/[?]r[=][0-9]+)' "$src_ram" | sed -n 1p > HEAL 2>/dev/null
     grep -o -E '([[:upper:]][[:lower:]]{0,20}( [[:upper:]][[:lower:]]{0,17})?)[[:space:]]\(' "$src_ram" | sed -n 's,\ [(],,;s,\ ,_,;2p' > CLAN 2>/dev/null
-    grep -o -E "(hp)[^A-Za-z0-9]{1,4}[0-9]{1,6}" "$src_ram" | sed "s,hp[']\\/[>],,;s,\ ,," > USH 2>/dev/null
-    grep -o -E "(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}" "$src_ram" | sed -n 's,nbsp[;],,;s,\ ,,;1p' > ENH 2>/dev/null
+    grep -o -E "(hp)[^A-Za-z0-9]{1,4}[0-9]{1,6}" "$src_ram" | grep -o -E '[0-9]+' | head -n 1 > USH 2>/dev/null
+    grep -o -E "(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}" "$src_ram" | grep -o -E '[0-9]+' | head -n 1 > ENH 2>/dev/null
     awk -v ush="$(cat USH)" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }' > RHP
     awk -v ush="$(cat "$full_ram")" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
 
     if grep -q -o '/dodge/' "$src_ram"; then
-      # A pagina respondeu com a luta: sessao confirmada.
       sessao_marcar
       printf "Em batalha clancoliseum - HP: %s\n" "`cat USH`"
     else
@@ -36,10 +35,6 @@ clancoliseum_fight() {
   echo $(($(date +%s) - 90)) > last_heal
   echo $(($(date +%s) - LA)) > last_atk
 
-  # LIMITE DE TEMPO: BREAK_LOOP so e gravado quando a luta termina.
-  # Se o estado nunca resolver (pagina muda, servidor devolve algo
-  # inesperado), o laco ficava requisitando para sempre e a conta
-  # travava naquela batalha. Teto de 10 minutos.
   FIGHT_BREAK=$(($(date +%s) + 600))
   until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$FIGHT_BREAK" ]; do
     if awk -v ush="$(cat USH)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
@@ -108,23 +103,6 @@ clancoliseum_start() {
 
   case `date +%H:%M` in
   10:2[5-9]|14:5[5-9])
-    # DISPONIBILIDADE PELO JOGO, NAO PELO CALENDARIO.
-    #
-    # O Coliseu do Cla tem temporadas: fora delas a pagina anuncia "Nova
-    # temporada comeca em ..." e nao oferece inscricao. A versao anterior nao
-    # verificava nada — pedia /train, mandava o enterFight as cegas e entrava
-    # na espera bloqueante ate :30 (ou :00), de 3 em 3 segundos. Fora de
-    # temporada isso deixava o worker ATE CINCO MINUTOS parado sem fazer nada,
-    # duas vezes por dia e por conta, sem arena, sem stats, e ainda com a
-    # sessao estacionada na pagina do coliseu.
-    #
-    # Agora a pagina e consultada ANTES, e a inscricao so acontece se o jogo
-    # de fato a oferecer — o mesmo criterio do apply_event(), usado nos demais
-    # eventos: existe link de enterFight? entao esta disponivel. O
-    # clancoliseum/dodge cobre o caso de a luta ja estar em andamento.
-    #
-    # Nenhuma data e consultada: quando a temporada voltar, o bot volta a
-    # participar sozinho, sem precisar de ajuste.
     (
       run_curl_exec "$URL/clancoliseum/?close=reward" > "$src_ram"
     ) </dev/null > /dev/null 2>&1 &

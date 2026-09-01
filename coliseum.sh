@@ -4,7 +4,7 @@ coliseum_fight() {
     src_ram="$TMP/col_src"
     full_ram="$TMP/col_full"
 
-    LA=3
+    LA=4
     HPER=38
     RPER=5
 

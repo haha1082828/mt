@@ -9,6 +9,7 @@ flagfight_fight() {
   RPER=15
 
   cf_access() {
+    [ -f "$src_ram" ] || return 1
     grep -o -E '(/[a-z]+/[a-z]{0,4}at[a-z]{0,3}k/[?]r[=][0-9]+)' "$src_ram" | sed -n '1p' > ATK 2>/dev/null
     grep -o -E '(/[a-z]+/at[a-z]{0,3}k[a-z]{3,6}/[?]r[=][0-9]+)' "$src_ram" | sed -n 1p > ATKRND 2>/dev/null
     grep -o -E '(/flagfight/dodge/[?]r[=][0-9]+)' "$src_ram" | sed -n 1p > DODGE 2>/dev/null
@@ -18,12 +19,16 @@ flagfight_fight() {
     grep -o -E '([[:upper:]][[:lower:]]{0,15}( [[:upper:]][[:lower:]]{0,13})?)[[:space:]][^[:alnum:]]s' "$src_ram" | sed -n 's,\ [<]s,,;s,\ ,_,;2p' > USER 2>/dev/null
     grep -o -E "(hp)[^A-Za-z0-9]{1,4}[0-9]{1,6}" "$src_ram" | grep -o -E '[0-9]+' | head -n 1 > USH 2>/dev/null
     grep -o -E "(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}" "$src_ram" | grep -o -E '[0-9]+' | head -n 1 > ENH 2>/dev/null
-    awk -v ush="$(cat USH)" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }' > RHP
-    awk -v ush="$(cat "$full_ram")" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
+
+    read -r ush < USH 2>/dev/null
+    read -r full < "$full_ram" 2>/dev/null
+
+    awk -v ush="${ush:-0}" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }' > RHP
+    awk -v ush="${full:-0}" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
 
     if grep -q -o '/dodge/' "$src_ram"; then
       sessao_marcar
-      printf "Em batalha flagfight - HP: %s\n" "`cat USH`"
+      printf "Em batalha flagfight - HP: %s\n" "${ush:-0}"
     else
       echo 1 > BREAK_LOOP
       printf "Battle over!\n"

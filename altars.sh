@@ -11,18 +11,29 @@ altars_fight() {
   echo "15" > RPER
 
   cf_access() {
-    grep -o -E '(/[a-z]+/[a-z]{0,4}at[a-z]{0,3}k/[?]r[=][0-9]+)' "$TMP/src.html" | sed -n 1p > ATK 2>/dev/null
-    grep -o -E '(/[a-z]+/at[a-z]{0,3}k[a-z]{3,6}/[?]r[=][0-9]+)' "$TMP/src.html" | sed -n 1p > ATKRND 2>/dev/null
-    grep -o -E '(/altars/dodge/[?]r[=][0-9]+)' "$TMP/src.html" | sed -n 1p > DODGE 2>/dev/null
-    grep -o -E '(/altars/heal/[?]r[=][0-9]+)' "$TMP/src.html" | sed -n 1p > HEAL 2>/dev/null
-    grep -o -E '([[:upper:]][[:lower:]]{0,20}( [[:upper:]][[:lower:]]{0,17})?)[[:space:]]\(' "$TMP/src.html" | sed -n 's,\ [(],,;s,\ ,_,;2p' > CLAN 2>/dev/null
-    grep -o -E "(hp)[^A-Za-z0-9]{1,4}[0-9]{1,6}" "$TMP/src.html" | grep -o -E '[0-9]+' | head -n 1 > HP 2>/dev/null
-    grep -o -E "(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}" "$TMP/src.html" | grep -o -E '[0-9]+' | head -n 1 > HP2 2>/dev/null
-    awk -v ush="$(cat HP)" -v rper="$(cat RPER)" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }' > RHP
-    awk -v ush="$(cat FULL)" -v hper="$(cat HPER)" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
-    if grep -q -o '/dodge/' "$TMP/src.html"; then
+    local html="$TMP/src.html"
+    [ -f "$html" ] || return 1
+    
+    # Extrações consolidadas mantendo os mesmos destinos originais
+    grep -o -E '(/[a-z]+/[a-z]{0,4}at[a-z]{0,3}k/[?]r[=][0-9]+)' "$html" | sed -n 1p > ATK 2>/dev/null
+    grep -o -E '(/[a-z]+/at[a-z]{0,3}k[a-z]{3,6}/[?]r[=][0-9]+)' "$html" | sed -n 1p > ATKRND 2>/dev/null
+    grep -o -E '(/altars/dodge/[?]r[=][0-9]+)' "$html" | sed -n 1p > DODGE 2>/dev/null
+    grep -o -E '(/altars/heal/[?]r[=][0-9]+)' "$html" | sed -n 1p > HEAL 2>/dev/null
+    grep -o -E '([[:upper:]][[:lower:]]{0,20}( [[:upper:]][[:lower:]]{0,17})?)[[:space:]]\(' "$html" | sed -n 's,\ [(],,;s,\ ,_,;2p' > CLAN 2>/dev/null
+    grep -o -E "(hp)[^A-Za-z0-9]{1,4}[0-9]{1,6}" "$html" | grep -o -E '[0-9]+' | head -n 1 > HP 2>/dev/null
+    grep -o -E "(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}" "$html" | grep -o -E '[0-9]+' | head -n 1 > HP2 2>/dev/null
+    
+    read -r ush < HP 2>/dev/null
+    read -r rper < RPER 2>/dev/null
+    read -r full < FULL 2>/dev/null
+    read -r hper < HPER 2>/dev/null
+
+    awk -v ush="${ush:-0}" -v rper="${rper:-0}" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }' > RHP
+    awk -v ush="${full:-0}" -v hper="${hper:-0}" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
+
+    if grep -q -o '/dodge/' "$html"; then
       sessao_marcar
-      printf "Em batalha - HP: %s\n" "`cat HP`"
+      printf "Em batalha - HP: %s\n" "${ush:-0}"
     else
       echo 1 > BREAK_LOOP
       printf "Battle over!\n"

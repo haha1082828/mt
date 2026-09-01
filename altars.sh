@@ -6,8 +6,8 @@
 altars_fight() {
   cd "$TMP" || return 1
   apply_event altars
-  LA=3
-  echo "48" > HPER
+  LA=4
+  echo "40" > HPER
   echo "15" > RPER
 
   cf_access() {

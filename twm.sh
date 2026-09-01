@@ -47,7 +47,7 @@ colors
 # e tem prioridade; o play.sh o apaga a cada lancamento, entao a flag de
 # linha de comando vence num inicio limpo.
 if [ -s "$TMP/runmode_file" ]; then
-    RUN=$(cat "$TMP/runmode_file" 2>/dev/null)
+    read -r RUN < "$TMP/runmode_file" 2>/dev/null
 elif [ -n "$1" ]; then
     RUN="$1"
 fi
@@ -117,7 +117,7 @@ login_lock() {
             echo $$ > "$LOCKDIR/pid" 2>/dev/null
             return 0
         fi
-        _dono=`cat "$LOCKDIR/pid" 2>/dev/null`
+        read -r _dono < "$LOCKDIR/pid" 2>/dev/null
         case "$_dono" in
             # PID ainda nao gravado: o dono acabou de criar a trava e
             # esta a caminho de escrever. Apagar aqui era uma corrida —
@@ -170,8 +170,7 @@ do_login() {
             fetch_max_hp 2>/dev/null
             parse_status "$PAGE"
             messages_info
-            printf "[%s] %s — sessao reaproveitada (sem novo login)
-" "$TWM_TAG" "$ACC"
+            printf "[%s] %s — sessao reaproveitada (sem novo login)\n" "$TWM_TAG" "$ACC"
             unset PAGE
             return 0
         fi
@@ -189,8 +188,11 @@ do_login() {
         printf "[%s] %s — ERRO: cript_file ilegivel\n" "$TWM_TAG" "$TWM_USER"
         return 1
     fi
-    luser=$(echo "$creds" | sed 's/login=//;s/&pass=.*//')
-    lpass=$(echo "$creds" | sed 's/.*&pass=//')
+    
+    # Otimização: Extração de credenciais nativa em memória (sem subshells e sed)
+    luser="${creds%%&pass=*}"
+    luser="${luser##login=}"
+    lpass="${creds##*&pass=}"
     unset creds
 
     # O GET INICIAL PRECISA SER A PAGINA DE LOGIN, NAO A HOME.

@@ -10,20 +10,27 @@ clanfight_fight() {
   RPER=15
   awk -v ush="$(cat FULL)" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
 
-  cf_access() {
-    grep -o -E '(/[a-z]+/[a-z]{0,4}at[a-z]{0,3}k/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$TMP/SRC" | sed -n '1p' > ATK 2>/dev/null
-    grep -o -E '(/[a-z]+/at[a-z]{0,3}k[a-z]{3,6}/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$TMP/SRC" | sed -n 1p > ATKRND 2>/dev/null
-    grep -o -E '(/clanfight/dodge/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$TMP/SRC" | sed -n 1p > DODGE 2>/dev/null
-    grep -o -E '(/clanfight/heal/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$TMP/SRC" | sed -n 1p > HEAL 2>/dev/null
-    grep -o -E '(/clanfight/grass/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$TMP/SRC" > GRASS 2>/dev/null
-    grep -o -E '([[:upper:]][[:lower:]]{0,20}( [[:upper:]][[:lower:]]{0,17})?)[[:space:]]\(' "$TMP/SRC" | sed -n 's,\ [(],,;s,\ ,_,;2p' > CLAN 2>/dev/null
-    grep -o -E "(hp)[^A-Za-z0-9]{1,4}[0-9]{1,6}" "$TMP/SRC" | grep -o -E '[0-9]+' | head -n 1 > HP 2>/dev/null
-    grep -o -E "(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}" "$TMP/SRC" | grep -o -E '[0-9]+' | head -n 1 > HP2 2>/dev/null
-    awk -v ush="$(cat HP)" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }' > RHP
-    awk -v ush="$(cat FULL)" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
-    if grep -q -o '/dodge/' "$TMP/SRC"; then
+cf_access() {
+    local src="$TMP/SRC"
+    [ -f "$src" ] || return 1
+    grep -o -E '(/[a-z]+/[a-z]{0,4}at[a-z]{0,3}k/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$src" | sed -n '1p' > ATK 2>/dev/null
+    grep -o -E '(/[a-z]+/at[a-z]{0,3}k[a-z]{3,6}/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$src" | sed -n 1p > ATKRND 2>/dev/null
+    grep -o -E '(/clanfight/dodge/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$src" | sed -n 1p > DODGE 2>/dev/null
+    grep -o -E '(/clanfight/heal/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$src" | sed -n 1p > HEAL 2>/dev/null
+    grep -o -E '(/clanfight/grass/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$src" > GRASS 2>/dev/null
+    grep -o -E '([[:upper:]][[:lower:]]{0,20}( [[:upper:]][[:lower:]]{0,17})?)[[:space:]]\(' "$src" | sed -n 's,\ [(],,;s,\ ,_,;2p' > CLAN 2>/dev/null
+    grep -o -E "(hp)[^A-Za-z0-9]{1,4}[0-9]{1,6}" "$src" | grep -o -E '[0-9]+' | head -n 1 > HP 2>/dev/null
+    grep -o -E "(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}" "$src" | grep -o -E '[0-9]+' | head -n 1 > HP2 2>/dev/null
+
+    read -r hp < HP 2>/dev/null
+    read -r full < "$TMP/FULL" 2>/dev/null
+
+    awk -v ush="${hp:-0}" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }' > RHP
+    awk -v ush="${full:-0}" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
+
+    if grep -q -o '/dodge/' "$src"; then
       sessao_marcar
-      printf "Em batalha clanfight - HP: %s\n" "`cat HP`"
+      printf "Em batalha clanfight - HP: %s\n" "${hp:-0}"
     else
       echo 1 > BREAK_LOOP
       printf "Battle is over!\n"

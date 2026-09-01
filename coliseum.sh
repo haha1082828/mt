@@ -64,7 +64,7 @@ coliseum_fight() {
             sleep 3s
         done
 
-                cl_access() {
+        cl_access() {
             last_heal=$(($(date +%s) - 90))
             last_dodge=$(($(date +%s) - 20))
             last_atk=$(($(date +%s) - LA))

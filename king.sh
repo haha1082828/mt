@@ -6,21 +6,27 @@ king_fight() {
   RPER=5
 
   cl_access() {
-    set -- `combate_ler king "$HPER" "$RPER" "$TMP/SRC"`
+    local src="$TMP/SRC"
+    [ -f "$src" ] || return 1
+
+    set -- `combate_ler king "$HPER" "$RPER" "$src"`
     _emluta="$1"; RHP="$2"; HLHP="$3"; _hpat="$4"; _hp2at="$5"
-    grep -o -E '([[:upper:]][[:lower:]]{0,15}( [[:upper:]][[:lower:]]{0,13})?)[[:space:]][^[:alnum:][:space:]]' "$TMP/SRC" | sed -n 's,\ [<]s,,;s,\ ,_,;2p' > USER 2>/dev/null
+    
+    grep -o -E '([[:upper:]][[:lower:]]{0,15}( [[:upper:]][[:lower:]]{0,13})?)[[:space:]][^[:alnum:][:space:]]' "$src" | sed -n 's,\ [<]s,,;s,\ ,_,;2p' > USER 2>/dev/null
+    
     if [ "$_emluta" = "1" ]; then
       sessao_marcar
-      printf "Em batalha - HP: %s\n" "$_hpat"
+      printf "Em batalha - HP: %s\n" "${_hpat:-0}"
     else
       (
-        run_curl_exec "${URL}/king" > "$TMP/SRC"
+        run_curl_exec "${URL}/king" > "$src"
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
-      grep -o -E '(/king/unrip/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$TMP/SRC" | sed -n 1p > UNRIP 2>/dev/null
-      if grep -q -o -E '(/king/unrip/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$TMP/SRC"; then
+      
+      grep -o -E '(/king/unrip/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$src" | sed -n 1p > UNRIP 2>/dev/null
+      if grep -q -o -E '(/king/unrip/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$src"; then
         (
-          run_curl_exec "${URL}$(cat UNRIP)" > "$TMP/SRC"
+          run_curl_exec "${URL}$(cat UNRIP)" > "$src"
         ) </dev/null > /dev/null 2>&1 &
         time_exit 17
       else

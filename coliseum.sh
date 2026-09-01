@@ -64,7 +64,7 @@ coliseum_fight() {
             sleep 3s
         done
 
-        cl_access() {
+                cl_access() {
             last_heal=$(($(date +%s) - 90))
             last_dodge=$(($(date +%s) - 20))
             last_atk=$(($(date +%s) - LA))
@@ -78,13 +78,13 @@ coliseum_fight() {
             DODGE=`grep -o -E '/coliseum/dodge/[?]r[=][0-9]+' "$src_ram"`
             HEAL=`grep -o -E '/coliseum/heal/[?]r[=][0-9]+' "$src_ram"`
 
-            RHP=`awk -v ush="$USH" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }'`
-            HLHP=`awk -v ush="$(cat "$full_ram")" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }'`
+            RHP=`awk -v ush="${USH:-0}" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }'`
+            read -r full_val < "$full_ram" 2>/dev/null
+            HLHP=`awk -v ush="${full_val:-0}" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }'`
 
             if grep -q -o '/dodge/' "$src_ram"; then
-                # A pagina respondeu com a luta: sessao confirmada.
                 sessao_marcar
-                printf "Em batalha - HP: %s\n" "$USH"
+                printf "Em batalha - HP: %s\n" "${USH:-0}"
             else
                 if grep -q -o '?end_fight=true' "$src_ram"; then
                     if awk -v ltime="$(($(date +%s) - first_time))" 'BEGIN { exit !(ltime < 300) }'; then
@@ -101,7 +101,7 @@ coliseum_fight() {
                 fi
             fi
         }
-
+        
         cl_access
         OLDHP=$USH
         BREAK_LOOP=""

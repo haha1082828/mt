@@ -48,7 +48,19 @@ cf_access() {
   FIGHT_BREAK=$(($(date +%s) + 600))
   until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$FIGHT_BREAK" ]; do
     cf_access
-    if awk -v ush="$(cat HP)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
+    if ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
+       [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && \
+       [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ] && \
+       awk -v ush="$(cat HP)" -v oldhp="$(cat old_HP)" 'BEGIN { exit !(ush < oldhp) }'; then
+      (
+        run_curl_exec "${URL}$(cat DODGE)" > "$TMP/SRC"
+      ) </dev/null > /dev/null 2>&1 &
+      time_exit 17
+      cf_access
+      cat HP > old_HP
+      date +%s > last_dodge
+
+    elif awk -v ush="$(cat HP)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
          [ "$(($(date +%s) - $(cat last_heal)))" -gt 90 ] && \
          [ "$(($(date +%s) - $(cat last_heal)))" -lt 300 ]; then
       (
@@ -64,17 +76,6 @@ cf_access() {
       cat HP > FULL
       cat HP > old_HP
       date +%s > last_heal
-    elif ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
-       [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && \
-       [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ] && \
-       awk -v ush="$(cat HP)" -v oldhp="$(cat old_HP)" 'BEGIN { exit !(ush < oldhp) }'; then
-      (
-        run_curl_exec "${URL}$(cat DODGE)" > "$TMP/SRC"
-      ) </dev/null > /dev/null 2>&1 &
-      time_exit 17
-      cf_access
-      cat HP > old_HP
-      date +%s > last_dodge
 
     elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
          ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \

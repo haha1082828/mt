@@ -1,7 +1,7 @@
 #!/bin/sh
 # play.sh - Orquestrador multi-contas TWM
 
-# CORRECAO (seguranca): sem umask, ~/.twm e o accounts.conf nasciam 755/644.
+# CORRECAO (seguranca): sem umask, ~/.twm e o accounts.conf nasciam 755/644.[span_0](start_span)[span_0](end_span)
 umask 077
 
 TOYBOX="$HOME/.multcf/toybox"
@@ -14,7 +14,7 @@ export TOYBOX
 #
 # CORRECAO: era so "dirname $0". Chamado por um link simbolico (ou por um
 # atalho em $PREFIX/bin), o TWMDIR apontava para a pasta do LINK e nao para
-# a do repositorio — e o accounts.conf lido era outro.
+# a do repositorio — e o accounts.conf lido era outro.[span_1](start_span)[span_1](end_span)
 _self="$0"
 _hops=0
 while [ -L "$_self" ] && [ "$_hops" -lt 20 ]; do
@@ -40,7 +40,7 @@ export TWMDIR
 #
 # Agora, se o arquivo local nao existir, os lugares conhecidos sao
 # procurados antes de desistir — e o caminho em uso passa a ser SEMPRE
-# impresso, para o numero nunca mais ficar sem explicacao.
+# impresso, para o numero nunca mais ficar sem explicacao.[span_2](start_span)[span_2](end_span)
 resolve_accounts_file() {
     if [ -s "$TWMDIR/accounts.conf" ]; then
         printf '%s' "$TWMDIR/accounts.conf"
@@ -65,7 +65,7 @@ termux-wake-lock 2>/dev/null
 STATUS_DIR="$HOME/.twm/status"
 
 # --restart / -r : derruba e sobe tudo de novo. Sem ele, as contas que ja
-# estao rodando sao preservadas e o play.sh so se acopla ao painel.
+# estao rodando sao preservadas e o play.sh so se acopla ao painel.[span_3](start_span)[span_3](end_span)
 FORCE_RESTART=0
 RUN=""
 for _arg in "$@"; do
@@ -89,7 +89,7 @@ mkdir -p "$STATUS_DIR"
 # PID do proprio orquestrador. Sem isto o stop.sh nao conseguia
 # encerrar o monitor: ele roda como "./play.sh" (caminho relativo) e
 # um pgrep por caminho absoluto nao casa. Cada ./play.sh deixava mais
-# um monitor vivo, todos supervisionando as mesmas contas.
+# um monitor vivo, todos supervisionando as mesmas contas.[span_4](start_span)[span_4](end_span)
 echo "$$" > "$STATUS_DIR/orchestrator.pid"
 chmod 700 "$HOME/.twm" 2>/dev/null
 [ -f "$ACCOUNTS_FILE" ] && chmod 600 "$ACCOUNTS_FILE" 2>/dev/null
@@ -98,7 +98,7 @@ chmod +x "$TWMDIR/worker.sh" "$TWMDIR/twm.sh" 2>/dev/null
 
 # setsid torna o worker lider de grupo de processos. Sem isso, matar o worker
 # deixa o twm.sh filho ORFAO e vivo, e ao rodar ./play.sh de novo a conta
-# passa a ter duas sessoes simultaneas disputando o mesmo cookie.
+# passa a ter duas sessoes simultaneas disputando o mesmo cookie.[span_5](start_span)[span_5](end_span)
 if command -v setsid > /dev/null 2>&1; then
     SETSID="setsid"
 else
@@ -109,15 +109,15 @@ fi
 #  SOMENTE SERVIDOR BR (furiadetitas.net)
 #  O suporte aos outros 12 servidores foi removido a pedido.
 #  O campo de servidor continua no accounts.conf (sempre "1")
-#  para nao quebrar cadastros existentes.
+#  para nao quebrar cadastros existentes.[span_6](start_span)[span_6](end_span)
 # ============================================================
 server_url()    { case "$1" in 1) echo "furiadetitas.net" ;; esac; }
 server_tag()    { case "$1" in 1) echo "BR" ;; esac; }
 server_scheme() { echo "https"; }
 
-# Remove CR (accounts.conf editado no Windows) e caracteres de controle.
+# Remove CR (accounts.conf editado no Windows) e caracteres de controle.[span_7](start_span)[span_7](end_span)
 clean_field() {
-    printf '%s' "$1" | tr -d '\r' | tr -d '\000-\037'
+    printf '%s' "$1" | tr -d '\000-\037'
 }
 
 # Mata o worker E seus filhos, mas so se o PID ainda for realmente um worker.
@@ -125,13 +125,13 @@ clean_field() {
 # CORRECAO: antes era "kill -0 PID && kill -9 PID". O kill -0 verifica
 # EXISTENCIA, nao IDENTIDADE: com o PID reciclado pelo kernel, o kill -9
 # acertava um processo inocente. Alem disso matava so o pai, deixando o
-# twm.sh filho orfao e ativo.
+# twm.sh filho orfao e ativo.[span_8](start_span)[span_8](end_span)
 kill_worker_tree() {
     kw_pid="$1"
     [ -n "$kw_pid" ] || return 1
     case "$kw_pid" in *[!0-9]*) return 1 ;; esac
 
-    # worker.sh OU twm.sh: apos o exec do worker.sh o cmdline e o do twm.sh.
+    # worker.sh OU twm.sh: apos o exec do worker.sh o cmdline e o do twm.sh.[span_9](start_span)[span_9](end_span)
     if [ -r "/proc/$kw_pid/cmdline" ]; then
         tr '\0' ' ' < "/proc/$kw_pid/cmdline" 2>/dev/null \
             | grep -qE 'worker\.sh|twm\.sh' || return 1
@@ -139,10 +139,12 @@ kill_worker_tree() {
         kill -0 "$kw_pid" 2>/dev/null || return 1
     fi
 
-    kill -TERM "-$kw_pid" 2>/dev/null || kill -TERM "$kw_pid" 2>/dev/null
+    kill -TERM "-$kw_pid" >/dev/null 2>&1
+    kill -TERM "$kw_pid" >/dev/null 2>&1
     sleep 2
     if kill -0 "$kw_pid" 2>/dev/null; then
-        kill -KILL "-$kw_pid" 2>/dev/null || kill -KILL "$kw_pid" 2>/dev/null
+        kill -KILL "-$kw_pid" >/dev/null 2>&1
+        kill -KILL "$kw_pid" >/dev/null 2>&1
     fi
     return 0
 }
@@ -151,14 +153,14 @@ kill_worker_tree() {
 #
 # Confere a IDENTIDADE pelo cmdline, nao so a existencia: o kernel recicla
 # PIDs, e um "kill -0" que acerta um processo qualquer do usuario faria o
-# play.sh achar que a conta esta no ar quando nao esta.
+# play.sh achar que a conta esta no ar quando nao esta.[span_10](start_span)[span_10](end_span)
 worker_vivo() {
     wv_pid="$1"
     [ -n "$wv_pid" ] || return 1
     case "$wv_pid" in *[!0-9]*) return 1 ;; esac
     kill -0 "$wv_pid" 2>/dev/null || return 1
     # Aceita worker.sh E twm.sh: o worker.sh faz exec do twm.sh, entao
-    # depois da troca o PID e o mesmo mas o cmdline e o do twm.sh.
+    # depois da troca o PID e o mesmo mas o cmdline e o do twm.sh.[span_11](start_span)[span_11](end_span)
     if [ -r "/proc/$wv_pid/cmdline" ]; then
         tr '\0' ' ' < "/proc/$wv_pid/cmdline" 2>/dev/null \
             | grep -qE 'worker\.sh|twm\.sh' || return 1
@@ -167,7 +169,7 @@ worker_vivo() {
 }
 
 # Sobe o worker de uma conta.  $1=srv  $2=usuario  $3=credencial (opcional)
-# Retorna 0 = subiu, 1 = falhou, 2 = ja estava rodando e foi mantida.
+# Retorna 0 = subiu, 1 = falhou, 2 = ja estava rodando e foi mantida.[span_12](start_span)[span_12](end_span)
 launch_worker() {
     lw_srv="$1"
     lw_user="$2"
@@ -193,7 +195,7 @@ launch_worker() {
     # CORRECAO (seguranca): a credencial era passada como argv[3] do
     # worker.sh e ficava legivel em /proc/PID/cmdline durante toda a vida do
     # processo (o worker roda para sempre). Agora e gravada aqui, em arquivo
-    # modo 600, e o worker recebe apenas o caminho do diretorio da conta.
+    # modo 600, e o worker recebe apenas o caminho do diretorio da conta.[span_13](start_span)[span_13](end_span)
     if [ -n "$lw_enc" ]; then
         printf '%s\n' "$lw_enc" > "$lw_dir/cript_file"
         chmod 600 "$lw_dir/cript_file"
@@ -218,7 +220,7 @@ launch_worker() {
     # Ou seja: o ato de olhar quebrava o que estava funcionando.
     #
     # Agora o worker vivo e MANTIDO e o play.sh apenas se acopla ao painel.
-    # Para forcar o reinicio de tudo: ./play.sh --restart
+    # Para forcar o reinicio de tudo: ./play.sh --restart[span_14](start_span)[span_14](end_span)
     if [ -f "$lw_pidf" ]; then
         lw_old=$(cat "$lw_pidf" 2>/dev/null)
         if [ "$FORCE_RESTART" != "1" ] && worker_vivo "$lw_old"; then
@@ -232,7 +234,7 @@ launch_worker() {
     fi
 
     # Limpa o modo salvo para que a flag de linha de comando vença num
-    # inicio limpo (o cave.sh regrava em runtime se trocar de modo).
+    # inicio limpo (o cave.sh regrava em runtime se trocar de modo).[span_15](start_span)[span_15](end_span)
     rm -f "$lw_dir/runmode_file"
 
     echo "starting" > "$lw_status"
@@ -254,7 +256,7 @@ fi
 
 # CORRECAO: era "grep -c '|' ... || echo 0". Quando o grep nao acha nada ele
 # imprime 0 E sai com status 1, entao o "|| echo 0" acrescentava um segundo 0
-# e a variavel virava "0\n0". Alem disso contava linhas comentadas.
+# e a variavel virava "0\n0". Alem disso contava linhas comentadas.[span_16](start_span)[span_16](end_span)
 total=$(grep -c -E '^[0-9]+\|' "$ACCOUNTS_FILE" 2>/dev/null)
 case "$total" in *[!0-9]*) total=0 ;; esac
 [ -z "$total" ] && total=0
@@ -264,7 +266,7 @@ printf "${CYAN}🎮 TWM Multi-contas - %s conta(s) [%s]${RESET}\n" "$total" "$TO
 # repositorio. No uso normal e uma linha que nao informa nada — o arquivo
 # esta onde deveria. Fora do lugar, e a primeira coisa que se quer saber:
 # o resolve_accounts_file procura em quatro pastas e ja aconteceu de o bot
-# subir lendo um arquivo antigo de outra instalacao.
+# subir lendo um arquivo antigo de outra instalacao.[span_17](start_span)[span_17](end_span)
 [ "$ACCOUNTS_FILE" = "$TWMDIR/accounts.conf" ] || \
     printf "${GOLD}Contas:${RESET} %s\n" "$ACCOUNTS_FILE"
 printf "${CYAN}DRAGONS 🐉${RESET}\n\n"
@@ -283,9 +285,10 @@ printf "${CYAN}DRAGONS 🐉${RESET}\n\n"
 # SIGKILL, eles SOBREVIVEM. A cada nova tentativa sobra mais uma leva, e
 # esses processos contam para o limite de 32 do Android 12 — o bot vai
 # ficando cada vez mais perto do teto sem ninguem perceber. Aqui morrem os
-# que nao correspondem a nenhuma conta em execucao registrada.
+# que nao correspondem a nenhuma conta em execucao registrada.[span_18](start_span)[span_18](end_span)
 limpa_orfaos() {
     _lo_n=0
+    _known_pids=$(cat "$STATUS_DIR"/*.pid 2>/dev/null | tr '\n' ' ')
     for _lo_p in /proc/[0-9]*; do
         _lo_pid=${_lo_p#/proc/}
         case "$_lo_pid" in *[!0-9]*) continue ;; esac
@@ -297,17 +300,16 @@ limpa_orfaos() {
         esac
         # Esta entre os PIDs que os arquivos de estado conhecem?
         _lo_conhecido=0
-        for _lo_f in "$STATUS_DIR"/*.pid; do
-            [ -f "$_lo_f" ] || continue
-            [ "$(cat "$_lo_f" 2>/dev/null)" = "$_lo_pid" ] && _lo_conhecido=1 && break
-        done
+        case " $_known_pids " in
+            *" $_lo_pid "*) _lo_conhecido=1 ;;
+        esac
         [ "$_lo_conhecido" = 1 ] && continue
         kill -TERM "$_lo_pid" 2>/dev/null
         _lo_n=$((_lo_n + 1))
     done
     [ "$_lo_n" -gt 0 ] && \
         printf "${GOLD}%s processo(s) orfao(s) de execucoes anteriores encerrado(s).${RESET}\n\n" "$_lo_n"
-    unset _lo_n _lo_p _lo_pid _lo_conhecido _lo_f
+    unset _lo_n _lo_p _lo_pid _lo_conhecido _known_pids
 }
 limpa_orfaos
 
@@ -317,7 +319,7 @@ limpa_orfaos
 # num Moto E22 (Android 12): o Termux marcava 26 processos com apenas duas
 # contas no ar — com seis nao havia como caber. Acima de 3 contas o
 # espacamento entre requisicoes passa a ser o proprio tempo de rede, o que
-# dispensa um "sleep" parado por conta.
+# dispensa um "sleep" parado por conta.[span_19](start_span)[span_19](end_span)
 if [ -d /data/data/com.termux ] && [ "$total" -gt 3 ] && [ -z "$TWM_PACING" ]; then
     TWM_PACING=0
     export TWM_PACING
@@ -339,7 +341,7 @@ n_kept=0
 # aparelhos ou gerado por versao antiga. O contador acima usa `grep -c`,
 # que CONTA essa linha: o play.sh anunciava "6 conta(s)" e subia 5, sem
 # nenhum erro. O `|| [ -n "$srv" ]` processa a linha final tambem quando
-# ela chega sem quebra.
+# ela chega sem quebra.[span_20](start_span)[span_20](end_span)
 while IFS='|' read -r srv user encoded <&3 || [ -n "$srv" ]; do
     srv=$(clean_field "$srv")
     user=$(clean_field "$user")
@@ -379,7 +381,7 @@ while IFS='|' read -r srv user encoded <&3 || [ -n "$srv" ]; do
     pid=""
     _w=0
     # 5s bastam: o worker grava o PID como primeira acao. Com 20 contas,
-    # o limite antigo de 10s somava ate 200s de espera no pior caso.
+    # o limite antigo de 10s somava ate 200s de espera no pior caso.[span_21](start_span)[span_21](end_span)
     while [ -z "$pid" ] && [ "$_w" -lt 5 ]; do
         sleep 1
         pid=$(cat "$pid_file" 2>/dev/null)
@@ -396,7 +398,7 @@ while IFS='|' read -r srv user encoded <&3 || [ -n "$srv" ]; do
         # levaria ate 6,7 minutos so para subir 20 contas. Agora a
         # janela total fica em torno de 3 minutos, qualquer que seja o
         # numero de contas, com um piso de 3s para nao autenticar todas
-        # no mesmo instante (o servidor limita login por IP).
+        # no mesmo instante (o servidor limita login por IP).[span_22](start_span)[span_22](end_span)
         _base=$(( 180 / total ))
         [ "$_base" -lt 3 ] && _base=3
         [ "$_base" -gt 15 ] && _base=15
@@ -421,7 +423,7 @@ printf "\n${GREEN}🟢 %s conta(s): %s iniciada(s), %s ja rodando.${RESET}\n\n" 
 # nunca iniciada — foi o que acontecia com a ultima linha quando o arquivo
 # nao terminava em quebra de linha. O laco acima ja trata esse caso; este
 # aviso existe para que qualquer outra causa (linha malformada, nome com
-# barra, servidor desconhecido) apareca em vez de passar em silencio.
+# barra, servidor desconhecido) apareca em vez de passar em silencio.[span_23](start_span)[span_23](end_span)
 if [ "$n" -lt "$total" ]; then
     printf "${RED}AVISO: %s conta(s) do arquivo nao foram iniciadas.${RESET}\n" \
         "$((total - n))"
@@ -436,7 +438,7 @@ printf "Parar tudo:    ${CYAN}./stop.sh${RESET}\n\n"
 # ============================================================
 #  PAINEL
 #  Mora no panel.sh, compartilhado com o status.sh. Aqui ele
-#  roda em modo supervisor: relanca worker que morrer.
+#  roda em modo supervisor: relanca worker que morrer.[span_24](start_span)[span_24](end_span)
 # ============================================================
 . "$TWMDIR/panel.sh"
 PANEL_SUPERVISE=1

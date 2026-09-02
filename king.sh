@@ -14,9 +14,16 @@ king_fight() {
     
     grep -o -E '([[:upper:]][[:lower:]]{0,15}( [[:upper:]][[:lower:]]{0,13})?)[[:space:]][^[:alnum:][:space:]]' "$src" | sed -n 's,\ [<]s,,;s,\ ,_,;2p' > USER 2>/dev/null
     
-    if [ "$_emluta" = "1" ]; then
+    grep -o -E '(/king/dodge/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$src" | sed -n 1p > DODGE 2>/dev/null
+    grep -o -E '(/king/heal/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$src" | sed -n 1p > HEAL 2>/dev/null
+    grep -o -E '(/king/kingatk/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$src" | sed -n 1p > KINGATK 2>/dev/null
+    grep -o -E '(/king/stone/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$src" | sed -n 1p > STONE 2>/dev/null
+    grep -o -E '(/king/at[a-z]{0,3}k[a-z]{3,6}/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$src" | sed -n 1p > ATKRND 2>/dev/null
+    grep -o -E '(/king/[a-z]{0,4}at[a-z]{0,3}k/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$src" | grep -v 'kingatk' | sed -n 1p > ATK 2>/dev/null
+
+    if [ "$_emluta" = "1" ] || grep -q -E '/king/(dodge|atk|heal)/' "$src"; then
       sessao_marcar
-      printf "Em batalha - HP: %s\n" "${_hpat:-0}"
+      printf "Em batalha King/PvP - HP: %s\n" "${_hpat:-0}"
     else
       (
         run_curl_exec "${URL}/king" > "$src"
@@ -24,11 +31,14 @@ king_fight() {
       time_exit 17
       
       grep -o -E '(/king/unrip/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$src" | sed -n 1p > UNRIP 2>/dev/null
-      if grep -q -o -E '(/king/unrip/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$src"; then
+      if [ -s UNRIP ]; then
         (
           run_curl_exec "${URL}$(cat UNRIP)" > "$src"
         ) </dev/null > /dev/null 2>&1 &
         time_exit 17
+      elif grep -q -E '/king/(dodge|atk|heal)/' "$src"; then
+        sessao_marcar
+        printf "Fase PvP secundária ativa.\n"
       else
         echo 1 > BREAK_LOOP
         printf "Battle over.\n"
@@ -46,7 +56,7 @@ king_fight() {
   }
 
   cl_access
-  cat HP > old_HP
+  cat HP > old_HP 2>/dev/null || echo "0" > old_HP
   _agora=`date +%s`
   _last_dodge=$(( _agora - 20 ))
   _last_heal=$(( _agora - 90 ))
@@ -67,26 +77,41 @@ king_fight() {
     # ── MODO NORMAL: HP > 10% ──────────────────────────────────────────────
     if awk -v p="$KPCT" 'BEGIN { exit !(p > 10) }'; then
 
-      if awk -v ush="$_hpat" -v hlhp="$HLHP" 'BEGIN { exit !(ush < hlhp) }' && \
+      if ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
+         [ $(( _agora - _last_dodge )) -gt 20 ] && \
+         [ $(( _agora - _last_dodge )) -lt 300 ] && \
+         awk -v ush="${_hpat:-0}" -v oldhp="$(cat old_HP 2>/dev/null || echo 0)" 'BEGIN { exit !(ush < oldhp) }' && \
+         [ -s DODGE ]; then
+        (
+          run_curl_exec "${URL}$(cat DODGE)" > "$TMP/SRC"
+        ) </dev/null > /dev/null 2>&1 &
+        time_exit 17
+        cl_access
+        echo "${_hpat:-0}" > old_HP
+        _last_dodge=`date +%s`; echo "$_last_dodge" > last_dodge
+
+      elif awk -v ush="${_hpat:-0}" -v hlhp="$HLHP" 'BEGIN { exit !(ush < hlhp) }' && \
          [ $(( _agora - _last_heal )) -gt 90 ] && \
-         [ $(( _agora - _last_heal )) -lt 300 ]; then
+         [ $(( _agora - _last_heal )) -lt 300 ] && \
+         [ -s HEAL ]; then
         (
           run_curl_exec "${URL}$(cat HEAL)" > "$TMP/SRC"
         ) </dev/null > /dev/null 2>&1 &
         time_exit 17
         cl_access
-        cat HP > FULL; _fullat="$_hpat"
+        echo "$_hpat" > FULL; _fullat="$_hpat"
+        echo "$_hpat" > old_HP
         _last_heal=`date +%s`; echo "$_last_heal" > last_heal
         sleep 0.3s
 
       elif [ $(( _agora - _last_atk )) -gt "$LA" ]; then
-        if grep -q -o -E '(king/kingatk/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$TMP/SRC"; then
+        if [ -s KINGATK ]; then
           (
             run_curl_exec "${URL}$(cat KINGATK)" > "$TMP/SRC"
           ) </dev/null > /dev/null 2>&1 &
           time_exit 17
           cl_access
-          if awk -v ush="$_hp2at" 'BEGIN { exit !(ush < 25) }'; then
+          if awk -v ush="${_hp2at:-100}" 'BEGIN { exit !(ush < 25) }' && [ -s STONE ]; then
             (
               run_curl_exec "${URL}$(cat STONE)" > "$TMP/SRC"
             ) </dev/null > /dev/null 2>&1 &
@@ -96,10 +121,10 @@ king_fight() {
         else
           if [ $(( _agora - _last_atk )) -ne "$LA" ] && \
              ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
-             awk -v rhp="$RHP" -v enh="$_hp2at" 'BEGIN { exit !(rhp < enh) }' || \
+             awk -v rhp="$RHP" -v enh="${_hp2at:-0}" 'BEGIN { exit !(rhp < enh) }' || \
              [ $(( _agora - _last_atk )) -ne "$LA" ] && \
              ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
-             grep -q -o "`cat USER`" allies.txt; then
+             grep -q -o "`cat USER`" allies.txt 2>/dev/null && [ -s ATKRND ]; then
             (
               run_curl_exec "${URL}$(cat ATKRND)" > "$TMP/SRC"
             ) </dev/null > /dev/null 2>&1 &
@@ -107,11 +132,14 @@ king_fight() {
             cl_access
             _last_atk=`date +%s`; echo "$_last_atk" > last_atk
           fi
-          (
-            run_curl_exec "${URL}$(cat ATK)" > "$TMP/SRC"
-          ) </dev/null > /dev/null 2>&1 &
-          time_exit 17
-          cl_access
+          
+          if [ -s ATK ]; then
+            (
+              run_curl_exec "${URL}$(cat ATK)" > "$TMP/SRC"
+            ) </dev/null > /dev/null 2>&1 &
+            time_exit 17
+            cl_access
+          fi
         fi
         _last_atk=`date +%s`; echo "$_last_atk" > last_atk
 
@@ -128,7 +156,7 @@ king_fight() {
     elif awk -v p="$KPCT" 'BEGIN { exit !(p > 1) }'; then
       printf "King sniper — modo espera: %s%%\n" "$KPCT"
 
-      if grep -q -o -E '(king/kingatk/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$TMP/SRC"; then
+      if [ -s KINGATK ]; then
         (
           run_curl_exec "${URL}$(cat KINGATK)" > "$TMP/SRC"
         ) </dev/null > /dev/null 2>&1 &
@@ -148,16 +176,13 @@ king_fight() {
     else
       printf "King sniper — FINALIZACAO: %s%%\n" "$KPCT"
 
-      # Agora o ataque focado respeita o tempo (LA) rigorosamente
       if [ $(( _agora - _last_atk )) -gt "$LA" ]; then
-        if grep -q -o -E '(king/kingatk/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$TMP/SRC"; then
-          # 1. kingatk — prioridade absoluta
+        if [ -s KINGATK ]; then
           (
             run_curl_exec "${URL}$(cat KINGATK)" > "$TMP/SRC"
           ) </dev/null > /dev/null 2>&1 &
           time_exit 17
           cl_access
-          # 2. stone imediatamente apos kingatk se disponivel
           if [ -s STONE ]; then
             (
               run_curl_exec "${URL}$(cat STONE)" > "$TMP/SRC"
@@ -165,8 +190,7 @@ king_fight() {
             time_exit 17
             cl_access
           fi
-        else
-          # 3. Ataque normal
+        elif [ -s ATK ]; then
           (
             run_curl_exec "${URL}$(cat ATK)" > "$TMP/SRC"
           ) </dev/null > /dev/null 2>&1 &
@@ -174,10 +198,8 @@ king_fight() {
           cl_access
         fi
         
-        # Marca que o tempo do ataque foi utilizado
         _last_atk=`date +%s`; echo "$_last_atk" > last_atk
       else
-        # Aguarda o cooldown passar atualizando o alvo rapidamente
         (
           run_curl_exec "${URL}/king" > "$TMP/SRC"
         ) </dev/null > /dev/null 2>&1 &
@@ -189,9 +211,9 @@ king_fight() {
 
   done
 
-  # ── POS-MORTE DO REI ───────────────────────────────────────────────────────
+  # ── POS-MORTE DO EVENTO ──────────────────────────────────────────────────
   if [ -s DODGE ]; then
-    printf "King morto — executando dodge pos-morte\n"
+    printf "Encerrando arena — executando dodge final\n"
     (
       run_curl_exec "${URL}$(cat DODGE)" > "$TMP/SRC"
     ) </dev/null > /dev/null 2>&1 &

@@ -144,23 +144,19 @@ league_play() {
                 ;;
             *)
                 if [ "$AVAILABLE_FIGHTS" -eq 0 ]; then
-                    # A recompensa pode ficar indisponivel por algumas horas
-                    # depois da ultima luta. Nunca ficar preso esperando por ela.
+                    # Tenta pegar a recompensa se ela estiver visível
                     clickReward=`grep -o -E "/league/takeReward/\?r=[0-9]+" "$TMP/SRC" | sed -n 1p`
 
                     if [ -n "$clickReward" ]; then
-                        if fetch_page "$clickReward"; then
-                            printf "Claimed reward\n"
-                        else
-                            printf "League reward request failed; leaving League for now.\n" >> "$TMP/ERROR_DEBUG"
-                            unset click ENEMY_NUMBER PLAYER_STRENGTH E_STRENGTH AVAILABLE_FIGHTS fights_done enemy_index j
-                            return 0
-                        fi
-                    else
-                        printf "League reward not available yet; leaving League for now.\n" >> "$TMP/ERROR_DEBUG"
-                        unset click ENEMY_NUMBER PLAYER_STRENGTH E_STRENGTH AVAILABLE_FIGHTS fights_done enemy_index j
-                        return 0
+                        printf "Claiming league reward...\n"
+                        fetch_page "$clickReward"
+                        sleep 1
                     fi
+                    
+                    # Força a saída limpa da liga para evitar qualquer travamento de loop
+                    printf "League finished or waiting for reward cooldown. Exiting League.\n"
+                    unset click ENEMY_NUMBER PLAYER_STRENGTH E_STRENGTH AVAILABLE_FIGHTS fights_done enemy_index j
+                    return 0
                 fi
                 ;;
         esac

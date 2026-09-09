@@ -254,14 +254,19 @@ fetch_page() {
     case "$_fp_pace" in ''|*[!0-9]*) _fp_pace=1 ;; esac
     [ "$_fp_pace" -gt 0 ] && sleep "$_fp_pace"
 
-    wait "$_fp_pid" 2>/dev/null
+        wait "$_fp_pid" 2>/dev/null
     _fp_rc=$?
     unset _fp_pid _fp_pace
 
     if [ "$_fp_rc" != "0" ]; then
-        printf "curl %s: %s\n" "$_fp_rc" "$relative_url" >> "${TMP:-.}/ERROR_DEBUG"
-        unset _fp_rc
-        return 1
+        # Tenta mais uma vez de forma imediata se a requisição de combate/página falhar
+        run_curl_exec "${URL}${relative_url}" > "$output_file" 2>/dev/null
+        _fp_rc=$?
+        if [ "$_fp_rc" != "0" ]; then
+            printf "curl %s: %s\n" "$_fp_rc" "$relative_url" >> "${TMP:-.}/ERROR_DEBUG"
+            unset _fp_rc
+            return 1
+        fi
     fi
     unset _fp_rc
     return 0

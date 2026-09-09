@@ -312,14 +312,12 @@ update_script() {
     printf "${GREEN}🐉 DRAGONS${RESET}  ${WHITE}ATUALIZAR SCRIPT${RESET}\n${GRAY}────────────────────────────────────────────${RESET}\n\n"
     printf "${GOLD}Baixando atualizações do repositório...${RESET}\n\n"
     
-    # 1. Acessa de forma dinâmica o diretório onde o repositório realmente está
     if ! cd "$TWMDIR"; then
         printf "${RED}Erro: Diretório não encontrado (${TWMDIR}).${RESET}\n"
         sleep 3
         return
     fi
 
-    # 2. Puxa a atualização do repositório via git
     if [ -d ".git" ]; then
         git reset --hard HEAD
         if ! git pull; then
@@ -333,11 +331,9 @@ update_script() {
         return
     fi
 
-    # 3. Dá permissão de execução para todos os scripts .sh
     chmod +x ./*.sh 2>/dev/null
     printf "${GREEN}[OK] Permissões aplicadas a todos os scripts!${RESET}\n"
 
-    # 4. Executa o stop.sh para parar execuções anteriores com segurança
     if [ -f "./stop.sh" ]; then
         printf "${GOLD}Executando ./stop.sh...${RESET}\n"
         ./stop.sh
@@ -346,7 +342,6 @@ update_script() {
     printf "${GREEN}Atualização concluída com sucesso! Reiniciando...${RESET}\n"
     sleep 2
 
-    # 5. Reinicia o painel abrindo o setup atualizado de forma limpa
     exec "$TWMDIR/setup.sh"
 }
 
@@ -359,7 +354,21 @@ while true; do
         2) add_account ;;
         3) remove_account ;;
         4) test_account ;;
-        5) clear; "$TWMDIR/play.sh"; exit 0 ;;
+        5) 
+            clear
+            printf "${GREEN}🐉 DRAGONS${RESET}  ${WHITE}ESCOLHER MODO DE INICIALIZAÇÃO${RESET}\n${GRAY}────────────────────────────────────────────${RESET}\n\n"
+            printf " [1] Modo Padrão (boot)\n"
+            printf " [2] Modo Caverna (-cv)\n"
+            printf " [3] Modo Coliseu (-cl)\n\n"
+            printf " Escolha o modo [1-3] (Enter para Padrão): "
+            read -r mode_opt
+            case "$mode_opt" in
+                2) clear; "$TWMDIR/play.sh" -cv ;;
+                3) clear; "$TWMDIR/play.sh" -cl ;;
+                *) clear; "$TWMDIR/play.sh" ;;
+            esac
+            exit 0
+            ;;
         6) update_script ;;
         0) printf "\nSaindo...\n"; exit 0 ;;
     esac

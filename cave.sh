@@ -6,44 +6,33 @@ GOLD_SPENT_TOTAL=0
 
 read_boost_gold_cost() {
     BOOST_GOLD_COST=`
-        grep -o -E '/cave/chance/2/[?]r=[0-9]+' "$TMP/SRC" \
-        | head -n1 \
-        | grep -o -E "gold.png[^0-9]*[0-9][0-9,]*[KMB]?" "$TMP/SRC" \
-        | grep -v -E '[KMB]' \
-        | head -n1 \
-        | sed -E 's/.*gold.png[^0-9]*([0-9][0-9,]*).*/\1/' \
-        | tr -d "'"
+        grep -o -E '(gold\.png[^0-9]*[0-9]+|[0-9]+[^<]*gold\.png)' "$TMP/SRC" \
+        | grep -o -E '[0-9]+' \
+        | head -n1
     `
     BOOST_GOLD_COST=${BOOST_GOLD_COST:-0}
 }
 
 read_speedup_silver_cost() {
     SPEEDUP_SILVER_COST=`
-        grep -o -E '/cave/speedUp/[^ ]+' "$TMP/SRC" \
+        grep -o -E '/cave/speedUp/[^"'\'' >]+' "$TMP/SRC" \
         | head -n1 \
-        | grep -o -E "silver.png[^0-9]*[0-9][0-9,]*[KMB]?" "$TMP/SRC" \
-        | grep -v -E '[KMB]' \
-        | head -n1 \
-        | sed -E 's/.*silver.png[^0-9]*([0-9][0-9,]*).*/\1/' \
-        | tr -d ','
+        | grep -o -E '(silver\.png[^0-9]*[0-9]+|[0-9]+[^<]*silver\.png)' "$TMP/SRC" \
+        | grep -o -E '[0-9]+' \
+        | head -n1
     `
+    if [ -z "$SPEEDUP_SILVER_COST" ]; then
+        SPEEDUP_SILVER_COST=`grep -i "silver" "$TMP/SRC" | grep -o -E '[0-9]+' | head -n1`
+    fi
     SPEEDUP_SILVER_COST=${SPEEDUP_SILVER_COST:-0}
 }
 
 check_cave_limits() {
-    # CORRECAO: comparava "$CAVE_GOLD_LIMIT" -gt 0 sem garantir que a
-    # variavel tivesse valor. Com set_cave_limits travado (ver abaixo) ela
-    # ficava vazia e o teste virava erro de operando a cada volta do laco.
     _gl=${CAVE_GOLD_LIMIT:-0}
     _sl=${CAVE_SILVER_LIMIT:-0}
     case "$_gl" in ''|*[!0-9]*) _gl=0 ;; esac
     case "$_sl" in ''|*[!0-9]*) _sl=0 ;; esac
 
-    # CORRECAO (multi-contas): gravava em "$TWMDIR/runmode_file", arquivo
-    # compartilhado por todas as contas. Agora e por conta, em $TMP.
-    # E a re-execucao aninhada ("$TWMDIR/twm.sh" -boot seguida de exit 0)
-    # foi removida: bastava sair, porque o worker.sh desta conta ja reinicia
-    # o twm.sh em ~15s e ele le o runmode_file atualizado.
     if [ "$_gl" -gt 0 ] && [ "${GOLD_SPENT_TOTAL:-0}" -ge "$_gl" ]; then
         printf "Limite de ouro atingido (%s/%s)\n" "${GOLD_SPENT_TOTAL:-0}" "$_gl"
         sleep 3
@@ -61,12 +50,6 @@ check_cave_limits() {
 }
 
 set_cave_limits() {
-    # CORRECAO CRITICA: sem terminal (o worker roda com stdin em /dev/null)
-    # o "read" retornava vazio, o valor caia no ramo ''|*[!0-9]* e o
-    # "while true" girava para sempre imprimindo "Invalid value". Ou seja:
-    # "./play.sh -cv" nunca chegava a iniciar a caverna e o log crescia ate
-    # encher o armazenamento. Agora, sem TTY, usa os limites salvos no
-    # config da conta e segue em frente.
     CAVE_GOLD_LIMIT=${CAVE_GOLD_LIMIT:-0}
     CAVE_SILVER_LIMIT=${CAVE_SILVER_LIMIT:-0}
 
@@ -111,8 +94,6 @@ set_cave_limits() {
 }
 
 check_cave_keypress() {
-    # CORRECAO: "read -n" e bashism — nao existe em sh/dash/toybox, e o
-    # play.sh executa tudo via $TOYBOX. Sem terminal nao ha tecla a ler.
     [ -t 0 ] || return 0
     key=""
     read -r -t 1 key 2>/dev/null || return 0
@@ -138,25 +119,28 @@ cave_start() {
     set_cave_limits
 
     while echo "$RUN" | grep -q -E '[-]cv'; do
-        CAVE=`grep -o -E '/cave/(gather|down|speedUp)/[?]r[=][0-9]+' "$TMP/SRC" | sed -n '1p'`
+        # CAPTURA INTELIGENTE: Pega o link inteiro independentemente do que vier depois na URL
+        CAVE=`grep -o -E '/cave/(gather|down|speedUp|attack|runaway)[^"'\'' >]*' "$TMP/SRC" | sed -n '1p'`
         RESULT=`echo "$CAVE" | cut -d'/' -f3`
+
+        if [ -z "$CAVE" ]; then
+            printf "Caverna sem acao disponivel agora\n"
+            break
+        fi
 
         RESOURCES=`grep -o -E 'res/[0-9]+\.png' "$TMP/SRC" | sed 's/res\///;s/.png//'`
         MINERALS_FOUND=`echo "$RESOURCES" | grep -E '^[1-5]$' | wc -l`
         HERBS_FOUND=`echo "$RESOURCES" | grep -E '^(6|7|8|9)$' | wc -l`
-        BOOST_LINK=`grep -o -E '/cave/chance/2/[?]r=[0-9]+' "$TMP/SRC" | head -n 1`
+        BOOST_LINK=`grep -o -E '/cave/chance/2/[^"'\'' >]*' "$TMP/SRC" | head -n 1`
 
         CAN_ATTACK_MONSTER=${CAN_ATTACK_MONSTER:-0}
-        MONSTER_ATTACK=`grep -o -E '/cave/attack/[?]r=[0-9]+' "$TMP/SRC" | head -n1`
-        MONSTER_RUNAWAY=`grep -o -E '/cave/runaway/[?]r=[0-9]+' "$TMP/SRC" | head -n1`
+        MONSTER_ATTACK=`grep -o -E '/cave/attack[^"'\'' >]*' "$TMP/SRC" | head -n1`
+        MONSTER_RUNAWAY=`grep -o -E '/cave/runaway[^"'\'' >]*' "$TMP/SRC" | head -n1`
 
         check_cave_keypress
 
         if [ "$MINERALS_FOUND" -eq 3 ] && [ "$HERBS_FOUND" -eq 0 ] && [ -n "$BOOST_LINK" ]; then
             read_boost_gold_cost
-            # /cave/chance/2/ custa OURO. A politica nega, entao o link nao
-            # e acessado e CAN_ATTACK_MONSTER fica 0: o monstro logo abaixo
-            # e evitado em vez de enfrentado.
             if resource_allow gold "$BOOST_GOLD_COST" cave_gold_boost; then
                 printf "3 ores detected! Increasing chance by 100%%\n"
                 fetch_page "$BOOST_LINK"
@@ -177,8 +161,24 @@ cave_start() {
             fi
         fi
 
-        read_speedup_silver_cost
-        fetch_page "$CAVE"
+        if [ "$RESULT" = "speedUp" ]; then
+            read_speedup_silver_cost
+            if [ "$SPEEDUP_SILVER_COST" -gt 0 ]; then
+                if resource_allow silver "$SPEEDUP_SILVER_COST" cave_silver_speedup; then
+                    printf "Speeding up mining with silver (cost: %s)\n" "$SPEEDUP_SILVER_COST"
+                    fetch_page "$CAVE"
+                    SILVER_SPENT_TOTAL=$((SILVER_SPENT_TOTAL + SPEEDUP_SILVER_COST))
+                else
+                    printf "Speedup with silver skipped due to budget/policy limit.\n"
+                    fetch_page "$CAVE"
+                fi
+            else
+                printf "Speedup with silver executed (forcing click).\n"
+                fetch_page "$CAVE"
+            fi
+        else
+            fetch_page "$CAVE"
+        fi
 
         case $RESULT in
             down*)
@@ -192,10 +192,6 @@ cave_start() {
                 printf "Speeding up mining\n"
                 ;;
         esac
-
-        if [ "$SPEEDUP_SILVER_COST" -gt 0 ]; then
-            SILVER_SPENT_TOTAL=$((SILVER_SPENT_TOTAL + SPEEDUP_SILVER_COST))
-        fi
 
         bottom_info
         fetch_page "/cave/"
@@ -213,33 +209,25 @@ cave_routine() {
         count=8
     fi
 
-    # LIMITE DE TEMPO: o laco abaixo era "while true", sem limite e sem
-    # saida quando nao ha acao disponivel. Com a caverna em espera, CAVE
-    # ficava vazio, o case nao casava com nada, e o laco repetia
-    # fetch_page "/cave/" indefinidamente — cerca de 3600 requisicoes por
-    # hora, por conta. Era a maior fonte de carga do bot.
     CAVE_BREAK=$(($(date +%s) + 240))
 
     fetch_page "/cave/"
 
     while [ "$(date +%s)" -lt "$CAVE_BREAK" ]; do
-        CAVE=`grep -o -E '/cave/(gather|down|runaway|speedUp)/[?]r[=][0-9]+' "$TMP/SRC" | sed -n '1p'`
+        # CAPTURA INTELIGENTE: Blindado contra mudancas na URL
+        CAVE=`grep -o -E '/cave/(gather|down|runaway|speedUp)[^"'\'' >]*' "$TMP/SRC" | sed -n '1p'`
         RESULT=`echo "$CAVE" | cut -d'/' -f3`
 
-        # Sem link de acao, a caverna esta em espera: sai em vez de
-        # repetir a mesma requisicao ate o tempo acabar.
         if [ -z "$CAVE" ]; then
-            printf "Caverna sem acao disponivel agora
-"
+            printf "Caverna sem acao disponivel agora\n"
             break
         fi
 
         RESOURCES=`grep -o -E 'res/[0-9]+\.png' "$TMP/SRC" | sed 's/res\///;s/.png//'`
         MINERALS_FOUND=`echo "$RESOURCES" | grep -E '^[1-5]$' | wc -l`
         HERBS_FOUND=`echo "$RESOURCES" | grep -E '^(6|7|8|9)$' | wc -l`
-        BOOST_LINK=`grep -o -E '/cave/chance/2/[?]r=[0-9]+' "$TMP/SRC" | head -n 1`
+        BOOST_LINK=`grep -o -E '/cave/chance/2[^"'\'' >]*' "$TMP/SRC" | head -n 1`
 
-        # Segundo ponto de boost. Mesma politica: custa ouro, entao nao vai.
         if [ "$FUNC_cave_boost" = "y" ]; then
             if [ "$MINERALS_FOUND" -eq 3 ] && [ "$HERBS_FOUND" -eq 0 ] && [ -n "$BOOST_LINK" ]; then
                 read_boost_gold_cost
@@ -257,7 +245,24 @@ cave_routine() {
 
         case $RESULT in
             gather|down|runaway|speedUp)
-                fetch_page "$CAVE"
+                if [ "$RESULT" = "speedUp" ]; then
+                    read_speedup_silver_cost
+                    if [ "$SPEEDUP_SILVER_COST" -gt 0 ]; then
+                        if resource_allow silver "$SPEEDUP_SILVER_COST" cave_silver_speedup; then
+                            printf "Speed up mining with silver (cost: %s)\n" "$SPEEDUP_SILVER_COST"
+                            fetch_page "$CAVE"
+                            SILVER_SPENT_TOTAL=$((SILVER_SPENT_TOTAL + SPEEDUP_SILVER_COST))
+                        else
+                            printf "Speedup policy blocked silver spending, forcing click.\n"
+                            fetch_page "$CAVE"
+                        fi
+                    else
+                        fetch_page "$CAVE"
+                    fi
+                else
+                    fetch_page "$CAVE"
+                fi
+
                 case $RESULT in
                     down*)
                         printf "New search\n"

@@ -17,7 +17,7 @@ if [ -z "$TWM_SRV" ] || [ -z "$TWM_URL" ] || [ -z "$TWM_ACC_DIR" ] || [ -z "$TWM
     exit 1
 fi
 
-export TWM_SRV TWM_USER TWM_TAG TWM_URL TWM_ACC_DIR TWM_STATUS_FILE TOYBOX
+export TWM_SRV TWM_USER TWM_TAG TWM_URL TWM_ACC_DIR TWM_STATUS_FILE TOYBOX RUN
 
 umask 077
 
@@ -33,7 +33,7 @@ echo "starting" > "$TWM_STATUS_FILE"
 
 termux-wake-lock 2>/dev/null
 
-printf "[%s] %s — worker PID=%s\n" "$TWM_TAG" "$TWM_USER" "$$"
+printf "[%s] %s — worker PID=%s (modo: %s)\n" "$TWM_TAG" "$TWM_USER" "$$" "$RUN"
 
 mkdir -p "$TWM_ACC_DIR"
 chmod 700 "$TWM_ACC_DIR" 2>/dev/null
@@ -60,5 +60,8 @@ rotate_log() {
 
 rotate_log
 echo "running" > "$TWM_STATUS_FILE"
+
+# Grava o modo de execução persistente na pasta da conta para o twm.sh ler
+printf "%s" "$RUN" > "$TWM_ACC_DIR/runmode_file" 2>/dev/null
 
 exec "$TOYBOX" "$TWMDIR/twm.sh" "$RUN" < /dev/null

@@ -1,10 +1,8 @@
 #!/bin/sh
 # shellcheck disable=SC1091
 # twm.sh - Worker de conta individual (nao interativo)
-# Executado pelo worker.sh com o shell correto via $TOYBOX
 
 TOYBOX="${TOYBOX:-sh}"
-
 umask 077
 
 if [ -z "$TWMDIR" ]; then
@@ -25,7 +23,6 @@ TMP="$TWM_ACC_DIR"
 TMP_COOKIE="$TMP/cookie.txt"
 export URL UR TMP TMP_COOKIE
 
-# Servidor unico (BR): fuso fixo.
 export TZ="America/Bahia"
 
 mkdir -p "$TMP"
@@ -37,7 +34,6 @@ chmod 700 "$TMP" 2>/dev/null
 . "$TWMDIR/session_check.sh"
 colors
 
-# Modo de execucao.
 if [ -s "$TMP/runmode_file" ]; then
     read -r RUN < "$TMP/runmode_file" 2>/dev/null
 elif [ -n "$1" ]; then
@@ -118,7 +114,7 @@ do_login() {
             fetch_max_hp 2>/dev/null
             parse_status "$PAGE"
             messages_info
-            printf "[%s] %s — sessao reaproveitada (sem novo login)\n" "$TWM_TAG" "$ACC"
+            printf "[%s] %s — sessao reaproveitada\n" "$TWM_TAG" "$ACC"
             unset PAGE
             return 0
         fi
@@ -126,16 +122,10 @@ do_login() {
     fi
 
     cript_file="$TMP/cript_file"
-    if [ ! -s "$cript_file" ]; then
-        printf "[%s] %s — ERRO: sem credenciais\n" "$TWM_TAG" "$TWM_USER"
-        return 1
-    fi
+    [ ! -s "$cript_file" ] && return 1
 
     creds=$(base64 -d "$cript_file" 2>/dev/null)
-    if [ -z "$creds" ]; then
-        printf "[%s] %s — ERRO: cript_file ilegivel\n" "$TWM_TAG" "$TWM_USER"
-        return 1
-    fi
+    [ -z "$creds" ] && return 1
     
     luser="${creds%%&pass=*}"
     luser="${luser##login=}"
@@ -144,7 +134,6 @@ do_login() {
 
     login_lock
     run_curl "${URL}/?sign_in=1" > /dev/null 2>&1
-
     run_curl --data-urlencode "login=${luser}" \
              --data-urlencode "pass=${lpass}" \
              "${URL}/?sign_in=1" > /dev/null
@@ -153,7 +142,6 @@ do_login() {
     _rc2=$?
     PAGE=$(run_curl "${URL}/user" 2>/dev/null)
     _rc3=$?
-
     login_unlock
 
     if [ "$_rc2" -ne 0 ] || [ "$_rc3" -ne 0 ] || [ -z "$PAGE" ]; then
@@ -183,58 +171,36 @@ while true; do
     if do_login; then
         break
     fi
-
     if [ "${LOGIN_ERRO:-credencial}" = "rede" ]; then
         _wait=$(( 20 + ($$ % 20) ))
-        printf "[%s] %s — servidor nao respondeu, nova tentativa em %ss\n" \
-            "$TWM_TAG" "$TWM_USER" "$_wait"
-        [ -n "$TWM_STATUS_FILE" ] && echo "login_retry" > "$TWM_STATUS_FILE"
         sleep "$_wait"
-        login_delay=30
-        login_try=0
         rm -f "$TMP_COOKIE"
         continue
     fi
-
     login_try=$((login_try + 1))
-
     _half=$(( login_delay / 2 ))
     _wait=$(( _half + ( ($$ + login_try) % (_half + 1) ) ))
-
-    printf "[%s] %s — login falhou (tentativa %s), nova tentativa em %ss\n" \
-        "$TWM_TAG" "$TWM_USER" "$login_try" "$_wait"
-    [ -n "$TWM_STATUS_FILE" ] && echo "login_retry" > "$TWM_STATUS_FILE"
     sleep "$_wait"
-
-    if   [ "$login_try" -le 3 ]; then _cap=60
-    elif [ "$login_try" -le 6 ]; then _cap=300
-    else                               _cap=900
-    fi
-    [ "$login_delay" -lt "$_cap" ] && login_delay=$((login_delay * 2))
-    [ "$login_delay" -gt "$_cap" ] && login_delay=$_cap
+    [ "$login_delay" -lt 900 ] && login_delay=$((login_delay * 2))
     rm -f "$TMP_COOKIE"
 done
 
 clan_id 2>/dev/null
 func_proxy
 
+# Mantém exatamente o método original de chamada do fluxo de execuções da conta
 twm_start() {
     case "$RUN" in
         *-cv*) cave_start ;;
-        *-cl*) twm_play ;;
+        *-cl*) arena_duel; coliseum_start ;;
         *)     twm_play ;;
     esac
-}
-
-func_unset() {
-    unset HP1 HP2 YOU USER CLAN ENTER ATK ATKRND DODGE HEAL GRASS STONE \
-          BEXIT OUTGATE LEAVEFIGHT WDRED CAVE BREAK NEWCAVE \
-          FULL RHP HLHP ACCESS SHIELD UNRIP KINGATK
 }
 
 [ -n "$TWM_STATUS_FILE" ] && echo "running" > "$TWM_STATUS_FILE"
 printf "[%s] %s — loop principal iniciado\n" "$TWM_TAG" "$ACC"
 
+# Executa o padrão original (chama twm_start ou loop de relógio nativo)
 while true; do
     if [ -f "$HOME/.twm/PAUSED" ] || [ -f "$TMP/PAUSED" ]; then
         [ -n "$TWM_STATUS_FILE" ] && echo "paused" > "$TWM_STATUS_FILE"
@@ -242,5 +208,6 @@ while true; do
         continue
     fi
     [ -n "$TWM_STATUS_FILE" ] && echo "running" > "$TWM_STATUS_FILE"
-    twm_start
+    
+    twm_play
 done

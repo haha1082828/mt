@@ -230,7 +230,7 @@ fetch_page() {
     relative_url="$1"
     output_file="${2:-$TMP/SRC}"
 
-    TWM_MAXTIME=17
+    TWM_MAXTIME=7
     run_curl_exec "${URL}${relative_url}" > "$output_file" 2>/dev/null &
     _fp_pid=$!
     unset TWM_MAXTIME

@@ -1,8 +1,8 @@
 # shellcheck disable=SC2155
 coliseum_fight() {
-    # Arquivos de batalha gravados no diretorio da conta (sem mktemp)
     src_ram="$TMP/col_src"
     full_ram="$TMP/col_full"
+    cd "$TMP" || return 1
 
     LA=4
     HPER=38
@@ -10,25 +10,21 @@ coliseum_fight() {
 
     printf "Coliseum\n"
 
-    # HP maximo
     (
         run_curl_exec "$URL/train" | grep -o -E '\(([0-9]+)\)' | sed 's/[()]//g' > "$full_ram"
     ) </dev/null > /dev/null 2>&1 &
     time_exit 20
 
-    # Desativa graficos
     (
         run_curl_exec "$URL/settings/graphics/0" > /dev/null
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
 
-    # Pagina do coliseu
     (
         run_curl_exec "$URL/coliseum" > "$src_ram"
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
 
-    # Encerra luta pendente
     if grep -q -o '?end_fight' "$src_ram"; then
         (
             run_curl_exec "$URL/coliseum/?end_fight=true" > /dev/null
@@ -65,27 +61,24 @@ coliseum_fight() {
         done
 
         cl_access() {
-            last_heal=$(($(date +%s) - 90))
-            last_dodge=$(($(date +%s) - 20))
-            last_atk=$(($(date +%s) - LA))
+            [ -f "$src_ram" ] || return 1
+            grep -o -E '/coliseum/atk/[?]r[=][0-9]+' "$src_ram" | sed -n 1p > ATK 2>/dev/null
+            grep -o -E '/coliseum/atkrnd/[?]r[=][0-9]+' "$src_ram" > ATKRND 2>/dev/null
+            grep -o -E '/coliseum/dodge/[?]r[=][0-9]+' "$src_ram" > DODGE 2>/dev/null
+            grep -o -E '/coliseum/heal/[?]r[=][0-9]+' "$src_ram" > HEAL 2>/dev/null
 
-            # CORREÇÃO APLICADA AQUI: Substituído [0-9]{2,5} por [0-9]+ para suportar HP com 6 dígitos ou mais
-            USH=`grep -o -E '(hp)[^A-z0-9]{1,4}[0-9]+' "$src_ram" | grep -o -E '[0-9]+' | sed 's,\ ,,g'`
-            ENH=`grep -o -E '(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}' "$src_ram" | sed -n 's,nbsp[;],,;s,\ ,,;1p'`
-            USER=`grep -o -E '([[:upper:]][[:lower:]]{0,15}( [[:upper:]][[:lower:]]{0,13})?)[[:space:]][^[:alnum:]]s' "$src_ram" | sed -n 's,\ [<]s,,;s,\ ,_,;2p'`
+            grep -o -E '(hp)[^A-Za-z0-9]{1,4}[0-9]+' "$src_ram" | grep -o -E '[0-9]+' | head -n 1 > USH 2>/dev/null
+            grep -o -E '(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}' "$src_ram" | grep -o -E '[0-9]+' | head -n 1 > ENH 2>/dev/null
 
-            ATK=`grep -o -E '/coliseum/atk/[?]r[=][0-9]+' "$src_ram" | sed -n 1p`
-            ATKRND=`grep -o -E '/coliseum/atkrnd/[?]r[=][0-9]+' "$src_ram"`
-            DODGE=`grep -o -E '/coliseum/dodge/[?]r[=][0-9]+' "$src_ram"`
-            HEAL=`grep -o -E '/coliseum/heal/[?]r[=][0-9]+' "$src_ram"`
+            read -r ush < USH 2>/dev/null
+            read -r full < "$full_ram" 2>/dev/null
 
-            RHP=`awk -v ush="${USH:-0}" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }'`
-            read -r full_val < "$full_ram" 2>/dev/null
-            HLHP=`awk -v ush="${full_val:-0}" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }'`
+            awk -v ush="${ush:-0}" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }' > RHP
+            awk -v ush="${full:-0}" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
 
             if grep -q -o '/dodge/' "$src_ram"; then
                 sessao_marcar
-                printf "Em batalha - HP: %s\n" "${USH:-0}"
+                printf "Em batalha - HP: %s\n" "${ush:-0}"
             else
                 if grep -q -o '?end_fight=true' "$src_ram"; then
                     if awk -v ltime="$(($(date +%s) - first_time))" 'BEGIN { exit !(ltime < 300) }'; then
@@ -96,7 +89,7 @@ coliseum_fight() {
                         printf "Fim de batalha detectado.\n"
                     fi
                 else
-                    BREAK_LOOP=1
+                    echo 1 > BREAK_LOOP
                     printf "Battle over.\n"
                     sleep 2s
                 fi
@@ -104,60 +97,57 @@ coliseum_fight() {
         }
         
         cl_access
-        OLDHP=$USH
-        BREAK_LOOP=""
+        > BREAK_LOOP
+        cat USH > old_HP
+        echo $(($(date +%s) - 20)) > last_dodge
+        echo $(($(date +%s) - 90)) > last_heal
+        echo $(($(date +%s) - LA)) > last_atk
         first_time=`date +%s`
 
-        # Limite de tempo: BREAK_LOOP so e definido quando a luta
-        # termina. Se o estado nunca resolver, o laco era infinito.
         COL_BREAK=$(($(date +%s) + 600))
-        until [ -n "$BREAK_LOOP" ] || [ "$(date +%s)" -gt "$COL_BREAK" ]; do
-            now=`date +%s`
-            time_since_last_heal=$((now - last_heal))
-            time_since_last_dodge=$((now - last_dodge))
-            time_since_last_atk=$((now - last_atk))
-
-            if awk -v ush="$USH" -v hlhp="$HLHP" 'BEGIN { exit !(ush < hlhp) }' && \
-               [ "$time_since_last_heal" -gt 90 ] && [ "$time_since_last_heal" -lt 300 ]; then
+        until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$COL_BREAK" ]; do
+            cl_access
+            if ! grep -q -o 'txt smpl grey' "$src_ram" && \
+               [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && \
+               [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ] && \
+               awk -v ush="$(cat USH)" -v oldhp="$(cat old_HP)" 'BEGIN { exit !(ush < oldhp) }'; then
                 (
-                    run_curl_exec "${URL}${HEAL}" > "$src_ram"
+                    run_curl_exec "${URL}$(cat DODGE)" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 17
                 cl_access
-                echo "$USH" > "$full_ram"
-                last_heal=$now
-                last_atk=$now
+                cat USH > old_HP
+                date +%s > last_dodge
 
-            elif ! grep -q -o 'txt smpl grey' "$src_ram" && \
-                 [ "$time_since_last_dodge" -gt 20 ] && [ "$time_since_last_dodge" -lt 300 ] && \
-                 awk -v ush="$USH" -v oldhp="$OLDHP" 'BEGIN { exit !(ush < oldhp) }'; then
+            elif awk -v ush="$(cat USH)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
+                 [ "$(($(date +%s) - $(cat last_heal)))" -gt 90 ] && \
+                 [ "$(($(date +%s) - $(cat last_heal)))" -lt 300 ]; then
                 (
-                    run_curl_exec "${URL}${DODGE}" > "$src_ram"
+                    run_curl_exec "${URL}$(cat HEAL)" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 17
                 cl_access
-                OLDHP=$USH
-                last_dodge=$now
-                last_atk=$now
+                cat USH > "$full_ram"
+                cat USH > old_HP
+                date +%s > last_heal
 
-            elif awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
+            elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
                  ! grep -q -o 'txt smpl grey' "$src_ram" && \
-                 awk -v rhp="$RHP" -v enh="$ENH" 'BEGIN { exit !(rhp < enh) }'; then
+                 awk -v rhp="$(cat RHP)" -v enh="$(cat ENH)" 'BEGIN { exit !(rhp < enh) }'; then
                 (
-                    run_curl_exec "${URL}${ATKRND}" > "$src_ram"
+                    run_curl_exec "${URL}$(cat ATKRND)" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 17
                 cl_access
-                last_atk=$now
+                date +%s > last_atk
 
-            elif awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk > atktime) }'; then
+            elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk > atktime) }'; then
                 (
                     run_curl_exec "${URL}${ATK}" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 17
                 cl_access
-                last_atk=$now
-
+                date +%s > last_atk
             else
                 (
                     run_curl_exec "${URL}/coliseum" > "$src_ram"

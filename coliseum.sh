@@ -10,8 +10,11 @@ coliseum_fight() {
 
     printf "Coliseum\n"
 
-    # Limpa o arquivo de HP para registrar o HP real no inicio da luta
-    rm -f "$full_ram"
+    # HP maximo
+    (
+        run_curl_exec "$URL/train" | grep -o -E '\(([0-9]+)\)' | sed 's/[()]//g' > "$full_ram"
+    ) </dev/null > /dev/null 2>&1 &
+    time_exit 20
 
     # Desativa graficos
     (
@@ -62,27 +65,26 @@ coliseum_fight() {
         done
 
         cl_access() {
-            USH=$(grep -o -E '(hp)[^A-z0-9]{1,4}[0-9]{2,5}' "$src_ram" | grep -o -E '[0-9]{2,5}' | sed 's,\ ,,g' | sed -n '1p')
-            ENH=$(grep -o -E '(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}' "$src_ram" | sed -n 's,nbsp[;],,;s,\ ,,;1p')
-            USER=$(grep -o -E '([[:upper:]][[:lower:]]{0,15}( [[:upper:]][[:lower:]]{0,13})?)[[:space:]][^[:alnum:]]s' "$src_ram" | sed -n 's,\ [<]s,,;s,\ ,_,;2p')
+            last_heal=$(($(date +%s) - 90))
+            last_dodge=$(($(date +%s) - 20))
+            last_atk=$(($(date +%s) - LA))
 
-            ATK=$(grep -o -E '/coliseum/atk/?[?]r[=][0-9]+' "$src_ram" | sed -n '1p')
-            ATKRND=$(grep -o -E '/coliseum/atkrnd/?[?]r[=][0-9]+' "$src_ram" | sed -n '1p')
-            DODGE=$(grep -o -E '/coliseum/dodge/?[?]r[=][0-9]+' "$src_ram" | sed -n '1p')
-            HEAL=$(grep -o -E '/coliseum/heal/?[?]r[=][0-9]+' "$src_ram" | sed -n '1p')
+            USH=`grep -o -E '(hp)[^A-z0-9]{1,4}[0-9]{2,5}' "$src_ram" | grep -o -E '[0-9]{2,5}' | sed 's,\ ,,g'`
+            ENH=`grep -o -E '(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}' "$src_ram" | sed -n 's,nbsp[;],,;s,\ ,,;1p'`
+            USER=`grep -o -E '([[:upper:]][[:lower:]]{0,15}( [[:upper:]][[:lower:]]{0,13})?)[[:space:]][^[:alnum:]]s' "$src_ram" | sed -n 's,\ [<]s,,;s,\ ,_,;2p'`
 
-            # Inicializa o HP máximo com o seu HP intacto do primeiro turno
-            if [ ! -s "$full_ram" ]; then
-                echo "${USH:-0}" > "$full_ram"
-            fi
-            read -r full_val < "$full_ram" 2>/dev/null
+            ATK=`grep -o -E '/coliseum/atk/[?]r[=][0-9]+' "$src_ram" | sed -n 1p`
+            ATKRND=`grep -o -E '/coliseum/atkrnd/[?]r[=][0-9]+' "$src_ram"`
+            DODGE=`grep -o -E '/coliseum/dodge/[?]r[=][0-9]+' "$src_ram"`
+            HEAL=`grep -o -E '/coliseum/heal/[?]r[=][0-9]+' "$src_ram"`
 
-            RHP=$(awk -v ush="${USH:-0}" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }')
-            HLHP=$(awk -v maxhp="${full_val:-0}" -v hper="$HPER" 'BEGIN { printf "%.0f", maxhp * hper / 100 }')
+            RHP=`awk -v ush="$USH" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }'`
+            HLHP=`awk -v ush="$(cat "$full_ram")" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }'`
 
             if grep -q -o '/dodge/' "$src_ram"; then
+                # A pagina respondeu com a luta: sessao confirmada.
                 sessao_marcar
-                printf "Em batalha - HP: %s\n" "${USH:-0}"
+                printf "Em batalha - HP: %s\n" "$USH"
             else
                 if grep -q -o '?end_fight=true' "$src_ram"; then
                     if awk -v ltime="$(($(date +%s) - first_time))" 'BEGIN { exit !(ltime < 300) }'; then
@@ -99,20 +101,14 @@ coliseum_fight() {
                 fi
             fi
         }
-        
-        FIRST_HEAL=1
-        FIRST_DODGE=1
-        _col_now=`date +%s`
-        last_heal=$_col_now
-        last_dodge=$_col_now
-        last_atk=$((_col_now - LA))
-        unset _col_now
 
         cl_access
         OLDHP=$USH
         BREAK_LOOP=""
         first_time=`date +%s`
 
+        # Limite de tempo: BREAK_LOOP so e definido quando a luta
+        # termina. Se o estado nunca resolver, o laco era infinito.
         COL_BREAK=$(($(date +%s) + 600))
         until [ -n "$BREAK_LOOP" ] || [ "$(date +%s)" -gt "$COL_BREAK" ]; do
             now=`date +%s`
@@ -120,8 +116,19 @@ coliseum_fight() {
             time_since_last_dodge=$((now - last_dodge))
             time_since_last_atk=$((now - last_atk))
 
-            if [ -n "$DODGE" ] && \
-                 ([ "$FIRST_DODGE" -eq 1 ] || { [ "$time_since_last_dodge" -gt 20 ] && [ "$time_since_last_dodge" -lt 300 ]; }) && \
+            if awk -v ush="$USH" -v hlhp="$HLHP" 'BEGIN { exit !(ush < hlhp) }' && \
+               [ "$time_since_last_heal" -gt 90 ] && [ "$time_since_last_heal" -lt 300 ]; then
+                (
+                    run_curl_exec "${URL}${HEAL}" > "$src_ram"
+                ) </dev/null > /dev/null 2>&1 &
+                time_exit 17
+                cl_access
+                echo "$USH" > "$full_ram"
+                last_heal=$now
+                last_atk=$now
+
+            elif ! grep -q -o 'txt smpl grey' "$src_ram" && \
+                 [ "$time_since_last_dodge" -gt 20 ] && [ "$time_since_last_dodge" -lt 300 ] && \
                  awk -v ush="$USH" -v oldhp="$OLDHP" 'BEGIN { exit !(ush < oldhp) }'; then
                 (
                     run_curl_exec "${URL}${DODGE}" > "$src_ram"
@@ -129,24 +136,11 @@ coliseum_fight() {
                 time_exit 17
                 cl_access
                 OLDHP=$USH
-                last_dodge=`date +%s`
-                FIRST_DODGE=0
-                last_atk=`date +%s`
+                last_dodge=$now
+                last_atk=$now
 
-
-            elif awk -v ush="$USH" -v hlhp="$HLHP" 'BEGIN { exit !(ush <= hlhp) }' && \
-               ([ "$FIRST_HEAL" -eq 1 ] || { [ "$time_since_last_heal" -ge 90 ] && [ "$time_since_last_heal" -lt 300 ]; }); then
-                (
-                    run_curl_exec "${URL}${HEAL}" > "$src_ram"
-                ) </dev/null > /dev/null 2>&1 &
-                time_exit 17
-                cl_access
-                OLDHP=$USH
-                last_heal=`date +%s`
-                FIRST_HEAL=0
-                last_atk=`date +%s`
-            elif [ -n "$ATKRND" ] && \
-                 awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk >= atktime) }' && \
+            elif awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
+                 ! grep -q -o 'txt smpl grey' "$src_ram" && \
                  awk -v rhp="$RHP" -v enh="$ENH" 'BEGIN { exit !(rhp < enh) }'; then
                 (
                     run_curl_exec "${URL}${ATKRND}" > "$src_ram"
@@ -155,7 +149,7 @@ coliseum_fight() {
                 cl_access
                 last_atk=$now
 
-            elif [ -n "$ATK" ] && awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk >= atktime) }'; then
+            elif awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk > atktime) }'; then
                 (
                     run_curl_exec "${URL}${ATK}" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
@@ -174,7 +168,7 @@ coliseum_fight() {
         done
 
         rm -f "$src_ram" "$full_ram"
-        unset last_heal last_dodge last_atk FIRST_HEAL FIRST_DODGE USH ENH USER ATK ATKRND DODGE HEAL BREAK_LOOP
+        unset last_heal last_dodge last_atk USH ENH USER ATK ATKRND DODGE HEAL BREAK_LOOP
         func_unset
 
         printf "The battle is over!\n"

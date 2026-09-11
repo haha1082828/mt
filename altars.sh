@@ -4,20 +4,25 @@ altars_fight() {
   LA=4
   echo "40" > HPER
   echo "15" > RPER
+  rm -f FULL
 
   cf_access() {
     local html="$TMP/src.html"
     [ -f "$html" ] || return 1
     
     # Extrações consolidadas mantendo os mesmos destinos originais
-    grep -o -E '(/[a-z]+/[a-z]{0,4}at[a-z]{0,3}k/[?]r[=][0-9]+)' "$html" | sed -n 1p > ATK 2>/dev/null
-    grep -o -E '(/[a-z]+/at[a-z]{0,3}k[a-z]{3,6}/[?]r[=][0-9]+)' "$html" | sed -n 1p > ATKRND 2>/dev/null
-    grep -o -E '(/altars/dodge/[?]r[=][0-9]+)' "$html" | sed -n 1p > DODGE 2>/dev/null
-    grep -o -E '(/altars/heal/[?]r[=][0-9]+)' "$html" | sed -n 1p > HEAL 2>/dev/null
+    grep -o -E '(/[a-z]+/[a-z]{0,4}at[a-z]{0,3}k/?[?]r[=][0-9]+)' "$html" | sed -n 1p > ATK 2>/dev/null
+    grep -o -E '(/[a-z]+/at[a-z]{0,3}k[a-z]{3,6}/?[?]r[=][0-9]+)' "$html" | sed -n 1p > ATKRND 2>/dev/null
+    grep -o -E '(/altars/dodge/?[?]r[=][0-9]+)' "$html" | sed -n 1p > DODGE 2>/dev/null
+    grep -o -E '(/altars/heal/?[?]r[=][0-9]+)' "$html" | sed -n 1p > HEAL 2>/dev/null
     grep -o -E '([[:upper:]][[:lower:]]{0,20}( [[:upper:]][[:lower:]]{0,17})?)[[:space:]]\(' "$html" | sed -n 's,\ [(],,;s,\ ,_,;2p' > CLAN 2>/dev/null
     grep -o -E "(hp)[^A-Za-z0-9]{1,4}[0-9]{1,6}" "$html" | grep -o -E '[0-9]+' | head -n 1 > HP 2>/dev/null
     grep -o -E "(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}" "$html" | grep -o -E '[0-9]+' | head -n 1 > HP2 2>/dev/null
     
+    if [ ! -s FULL ]; then
+      cat HP > FULL 2>/dev/null
+    fi
+
     read -r ush < HP 2>/dev/null
     read -r rper < RPER 2>/dev/null
     read -r full < FULL 2>/dev/null
@@ -65,7 +70,7 @@ altars_fight() {
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
       cf_access
-      cat HP > FULL; cat HP > old_HP
+      cat HP > old_HP
       date +%s > last_heal
       FIRST_HEAL=0
 
@@ -110,11 +115,6 @@ altars_fight() {
 altars_start() {
   case `date +%H:%M` in
   (13:5[5-9]|20:5[5-9])
-    (
-      run_curl_exec "$URL/train" | grep -o -E '\(([0-9]+)\)' | sed 's/[()]//g' > "$TMP/FULL"
-    ) </dev/null > /dev/null 2>&1 &
-    time_exit 17
-
     fetch_page "/altars/?close=reward" "$TMP/src.html"
     fetch_page "/altars/enterFight" "$TMP/src.html"
     printf "Ancient Altars will be started...\n"

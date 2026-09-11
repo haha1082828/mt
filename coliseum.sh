@@ -12,7 +12,7 @@ coliseum_fight() {
 
     # HP maximo
     (
-        run_curl_exec "$URL/train" | grep -o -E '\(([0-9]+)\)' | sed 's/[()]//g' > "$full_ram"
+        run_curl_exec "$URL/train" | grep -o -E '\(([0-9]+)\)' | sed 's/[()]//g' | sed -n '1p' > "$full_ram"
     ) </dev/null > /dev/null 2>&1 &
     time_exit 20
 
@@ -98,16 +98,19 @@ coliseum_fight() {
             fi
         }
         
-        FIRST_HEAL=1
-        FIRST_DODGE=1
+        # O estado inicial e separado dos cooldowns.
+        # A primeira cura continua livre quando o HP estiver abaixo de HPER.
+        # A primeira esquiva fica disponivel para o primeiro dano recebido.
         _col_now=`date +%s`
         last_heal=$_col_now
-        last_dodge=$_col_now
+        last_dodge=$((_col_now - 20))
         last_atk=$((_col_now - LA))
         unset _col_now
 
         cl_access
         OLDHP=$USH
+        FIRST_DODGE=1
+        FIRST_HEAL=1
         BREAK_LOOP=""
         first_time=`date +%s`
 
@@ -116,13 +119,29 @@ coliseum_fight() {
         COL_BREAK=$(($(date +%s) + 600))
         until [ -n "$BREAK_LOOP" ] || [ "$(date +%s)" -gt "$COL_BREAK" ]; do
             now=`date +%s`
+
+            # Sempre atualiza o estado antes de decidir a proxima acao.
+            # Isso garante que um dano ocorrido entre duas iteracoes seja
+            # comparado com o HP anterior, em vez de decidir usando HTML antigo.
+            (
+                run_curl_exec "${URL}/coliseum" > "$src_ram"
+            ) </dev/null > /dev/null 2>&1 &
+            time_exit 17
+            cl_access
+
+            now=`date +%s`
             time_since_last_heal=$((now - last_heal))
             time_since_last_dodge=$((now - last_dodge))
             time_since_last_atk=$((now - last_atk))
 
+            # Dano recebido: a esquiva tem prioridade sobre a cura quando
+            # o HP ainda esta acima do limite de cura. A primeira esquiva
+            # nao depende de esperar 20 s; as seguintes respeitam o cooldown.
             if ! grep -q -o 'txt smpl grey' "$src_ram" && \
+                 [ -n "$DODGE" ] && \
                  ([ "$FIRST_DODGE" -eq 1 ] || { [ "$time_since_last_dodge" -gt 20 ] && [ "$time_since_last_dodge" -lt 300 ]; }) && \
-                 awk -v ush="$USH" -v oldhp="$OLDHP" 'BEGIN { exit !(ush < oldhp) }'; then
+                 awk -v ush="$USH" -v oldhp="$OLDHP" 'BEGIN { exit !(ush < oldhp) }' && \
+                 awk -v ush="$USH" -v hlhp="$HLHP" 'BEGIN { exit !(ush >= hlhp) }'; then
                 (
                     run_curl_exec "${URL}${DODGE}" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
@@ -133,15 +152,14 @@ coliseum_fight() {
                 FIRST_DODGE=0
                 last_atk=`date +%s`
 
-
             elif awk -v ush="$USH" -v hlhp="$HLHP" 'BEGIN { exit !(ush < hlhp) }' && \
-               ([ "$FIRST_HEAL" -eq 1 ] || { [ "$time_since_last_heal" -gt 90 ] && [ "$time_since_last_heal" -lt 300 ]; }); then
+               [ -n "$HEAL" ] && \
+               ([ "$time_since_last_heal" -ge 90 ] || [ "$last_heal" -eq "$now" ]); then
                 (
                     run_curl_exec "${URL}${HEAL}" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 17
                 cl_access
-                echo "$USH" > "$full_ram"
                 OLDHP=$USH
                 last_heal=`date +%s`
                 FIRST_HEAL=0

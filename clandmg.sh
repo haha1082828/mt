@@ -72,10 +72,10 @@ clandmgfight_fight() {
       date +%s > last_heal
       FIRST_HEAL=0
 
-    elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
+    elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk >= atktime) }' && \
          ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
          awk -v rhp="$(cat RHP)" -v enh="$(cat HP2)" 'BEGIN { exit !(rhp < enh) }' || \
-         awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
+         awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk >= atktime) }' && \
          ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
          grep -q -o "$(cat CLAN)" "$TMP/callies.txt"; then
       (

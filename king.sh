@@ -118,10 +118,10 @@ king_fight() {
             cl_access
           fi
         else
-          if [ $(( _agora - _last_atk )) -ne "$LA" ] && \
+          if [ $(( _agora - _last_atk )) -ge "$LA" ] && \
              ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
              awk -v rhp="$RHP" -v enh="${_hp2at:-0}" 'BEGIN { exit !(rhp < enh) }' || \
-             [ $(( _agora - _last_atk )) -ne "$LA" ] && \
+             [ $(( _agora - _last_atk )) -ge "$LA" ] && \
              ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
              grep -q -o "`cat USER`" allies.txt 2>/dev/null && [ -s ATKRND ]; then
             (

@@ -3,21 +3,27 @@ clandmgfight_fight() {
   LA=4
   HPER=48
   RPER=15
-  awk -v ush="$(cat FULL)" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
+  
+  rm -f FULL
 
   cf_access() {
-    grep -o -E '(/[a-z]+/[a-z]{0,4}at[a-z]{0,3}k/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$TMP/SRC" | sed -n '1p' > ATK 2>/dev/null
-    grep -o -E '(/[a-z]+/at[a-z]{0,3}k[a-z]{3,6}/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$TMP/SRC" | sed -n 1p > ATKRND 2>/dev/null
-    grep -o -E '(/clandmgfight/dodge/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$TMP/SRC" | sed -n 1p > DODGE 2>/dev/null
-    grep -o -E '(/clandmgfight/heal/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$TMP/SRC" | sed -n 1p > HEAL 2>/dev/null
-    grep -o -E '(/clandmgfight/grass/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$TMP/SRC" > GRASS 2>/dev/null
+    grep -o -E '(/[a-z]+/[a-z]{0,4}at[a-z]{0,3}k/?[?]r[=][0-9]+)' "$TMP/SRC" | sed -n '1p' > ATK 2>/dev/null
+    grep -o -E '(/[a-z]+/at[a-z]{0,3}k[a-z]{3,6}/?[?]r[=][0-9]+)' "$TMP/SRC" | sed -n 1p > ATKRND 2>/dev/null
+    grep -o -E '(/clandmgfight/dodge/?[?]r[=][0-9]+)' "$TMP/SRC" | sed -n 1p > DODGE 2>/dev/null
+    grep -o -E '(/clandmgfight/heal/?[?]r[=][0-9]+)' "$TMP/SRC" | sed -n 1p > HEAL 2>/dev/null
+    grep -o -E '(/clandmgfight/grass/?[?]r[=][0-9]+)' "$TMP/SRC" > GRASS 2>/dev/null
     grep -o -E '([[:upper:]][[:lower:]]{0,20}( [[:upper:]][[:lower:]]{0,17})?)[[:space:]]\(' "$TMP/SRC" | sed -n 's,\ [(],,;s,\ ,_,;2p' > CLAN 2>/dev/null
     grep -o -E "(hp)[^A-Za-z0-9]{1,4}[0-9]{1,6}" "$TMP/SRC" | sed "s,hp[']\\/[>],,;s,\ ,," > HP 2>/dev/null
     grep -o -E "(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}" "$TMP/SRC" | sed -n 's,nbsp[;],,;s,\ ,,;1p' > HP2 2>/dev/null
-    awk -v ush="$(cat HP)" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }' > RHP
-    awk -v ush="$(cat FULL)" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
+    
+    if [ ! -s FULL ]; then
+      cat HP > FULL 2>/dev/null
+    fi
+    
+    awk -v ush="$(cat HP 2>/dev/null)" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }' > RHP
+    awk -v ush="$(cat FULL 2>/dev/null)" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
+    
     if grep -q -o '/dodge/' "$TMP/SRC"; then
-      # A pagina respondeu com a luta: sessao confirmada.
       sessao_marcar
       printf "Em batalha clandmg - HP: %s\n" "`cat HP`"
     else
@@ -36,10 +42,6 @@ clandmgfight_fight() {
   echo $(($(date +%s) - 90)) > last_heal
   echo $(($(date +%s) - LA)) > last_atk
 
-  # LIMITE DE TEMPO: BREAK_LOOP so e gravado quando a luta termina.
-  # Se o estado nunca resolver (pagina muda, servidor devolve algo
-  # inesperado), o laco ficava requisitando para sempre e a conta
-  # travava naquela batalha. Teto de 10 minutos.
   FIGHT_BREAK=$(($(date +%s) + 600))
   until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$FIGHT_BREAK" ]; do
     cf_access
@@ -67,7 +69,6 @@ clandmgfight_fight() {
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
       cf_access
-      cat HP > FULL
       cat HP > old_HP
       date +%s > last_heal
       FIRST_HEAL=0
@@ -115,10 +116,6 @@ clandmgfight_start() {
   case `date +%H:%M` in
   09:2[5-9]|21:2[5-9])
     (
-      run_curl_exec "$URL/train" | grep -o -E '\(([0-9]+)\)' | sed 's/[()]//g' > "$TMP/FULL"
-    ) </dev/null > /dev/null 2>&1 &
-    time_exit 17
-    (
       run_curl_exec "$URL/clandmgfight/?close=reward" > "$TMP/SRC"
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
@@ -127,11 +124,6 @@ clandmgfight_start() {
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
     printf "The clan duel will be started...\n"
-    # CORRECAO: o ramo de desistencia era "return" DENTRO do subshell da
-    # condicao. O return so encerra o subshell — nao a funcao —, entao a
-    # janela vencida nao abortava nada: o laco apenas terminava e o codigo
-    # seguia inscrevendo e lutando fora de hora. Agora a verificacao e feita
-    # no corpo do laco, onde o return realmente sai do clandmg_start.
     while (case `date +%M:%S` in (29:[3-5][0-9]) exit 1;; esac); do
       case `date +%M:%S` in
         [4-5][5-9]:[0-5][0-9])

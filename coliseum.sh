@@ -69,7 +69,8 @@ coliseum_fight() {
             last_dodge=$(($(date +%s) - 20))
             last_atk=$(($(date +%s) - LA))
 
-            USH=`grep -o -E '(hp)[^A-z0-9]{1,4}[0-9]{2,5}' "$src_ram" | grep -o -E '[0-9]{2,5}' | sed 's,\ ,,g'`
+            # CORREÇÃO APLICADA AQUI: Substituído [0-9]{2,5} por [0-9]+ para suportar HP com 6 dígitos ou mais
+            USH=`grep -o -E '(hp)[^A-z0-9]{1,4}[0-9]+' "$src_ram" | grep -o -E '[0-9]+' | sed 's,\ ,,g'`
             ENH=`grep -o -E '(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}' "$src_ram" | sed -n 's,nbsp[;],,;s,\ ,,;1p'`
             USER=`grep -o -E '([[:upper:]][[:lower:]]{0,15}( [[:upper:]][[:lower:]]{0,13})?)[[:space:]][^[:alnum:]]s' "$src_ram" | sed -n 's,\ [<]s,,;s,\ ,_,;2p'`
 

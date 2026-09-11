@@ -1,4 +1,3 @@
-# shellcheck disable=SC2148
 king_fight() {
   cd "$TMP" || return 1
   LA=4
@@ -58,6 +57,8 @@ king_fight() {
   cl_access
   cat HP > old_HP 2>/dev/null || echo "0" > old_HP
   _agora=`date +%s`
+  FIRST_DODGE=1
+  FIRST_HEAL=1
   _last_dodge=$(( _agora - 20 ))
   _last_heal=$(( _agora - 90 ))
   _last_atk=$(( _agora - LA ))
@@ -78,8 +79,7 @@ king_fight() {
     if awk -v p="$KPCT" 'BEGIN { exit !(p > 10) }'; then
 
       if ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
-         [ $(( _agora - _last_dodge )) -gt 20 ] && \
-         [ $(( _agora - _last_dodge )) -lt 300 ] && \
+         ([ "$FIRST_DODGE" -eq 1 ] || { [ $(( _agora - _last_dodge )) -gt 20 ] && [ $(( _agora - _last_dodge )) -lt 300 ]; }) && \
          awk -v ush="${_hpat:-0}" -v oldhp="$(cat old_HP 2>/dev/null || echo 0)" 'BEGIN { exit !(ush < oldhp) }' && \
          [ -s DODGE ]; then
         (
@@ -88,11 +88,10 @@ king_fight() {
         time_exit 17
         cl_access
         echo "${_hpat:-0}" > old_HP
-        _last_dodge=`date +%s`; echo "$_last_dodge" > last_dodge
+        _last_dodge=`date +%s`; echo "$_last_dodge" > last_dodge; FIRST_DODGE=0
 
       elif awk -v ush="${_hpat:-0}" -v hlhp="$HLHP" 'BEGIN { exit !(ush < hlhp) }' && \
-         [ $(( _agora - _last_heal )) -gt 90 ] && \
-         [ $(( _agora - _last_heal )) -lt 300 ] && \
+         ([ "$FIRST_HEAL" -eq 1 ] || { [ $(( _agora - _last_heal )) -gt 90 ] && [ $(( _agora - _last_heal )) -lt 300 ]; }) && \
          [ -s HEAL ]; then
         (
           run_curl_exec "${URL}$(cat HEAL)" > "$TMP/SRC"
@@ -101,7 +100,7 @@ king_fight() {
         cl_access
         echo "$_hpat" > FULL; _fullat="$_hpat"
         echo "$_hpat" > old_HP
-        _last_heal=`date +%s`; echo "$_last_heal" > last_heal
+        _last_heal=`date +%s`; echo "$_last_heal" > last_heal; FIRST_HEAL=0
         sleep 0.3s
 
       elif [ $(( _agora - _last_atk )) -gt "$LA" ]; then
@@ -220,7 +219,7 @@ king_fight() {
     time_exit 17
   fi
 
-  unset cl_access
+  unset cl_access FIRST_DODGE FIRST_HEAL
   func_unset
   apply_event king
   printf "King ok\n"

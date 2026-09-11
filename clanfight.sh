@@ -1,8 +1,3 @@
-#!/bin/bash
-
-# Módulo de batalha — carregado pelo script principal.
-# As dependências/globais são fornecidas pelo ambiente principal.
-
 clanfight_fight() {
   cd "$TMP" || return 1
   LA=4
@@ -41,6 +36,8 @@ cf_access() {
   cf_access
   > BREAK_LOOP
   cat HP > old_HP
+  FIRST_DODGE=1
+  FIRST_HEAL=1
   echo $(($(date +%s) - 20)) > last_dodge
   echo $(($(date +%s) - 90)) > last_heal
   echo $(($(date +%s) - LA)) > last_atk
@@ -49,8 +46,7 @@ cf_access() {
   until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$FIGHT_BREAK" ]; do
     cf_access
     if ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
-       [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && \
-       [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ] && \
+       ([ "$FIRST_DODGE" -eq 1 ] || { [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ]; }) && \
        awk -v ush="$(cat HP)" -v oldhp="$(cat old_HP)" 'BEGIN { exit !(ush < oldhp) }'; then
       (
         run_curl_exec "${URL}$(cat DODGE)" > "$TMP/SRC"
@@ -59,10 +55,10 @@ cf_access() {
       cf_access
       cat HP > old_HP
       date +%s > last_dodge
+      FIRST_DODGE=0
 
     elif awk -v ush="$(cat HP)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
-         [ "$(($(date +%s) - $(cat last_heal)))" -gt 90 ] && \
-         [ "$(($(date +%s) - $(cat last_heal)))" -lt 300 ]; then
+         ([ "$FIRST_HEAL" -eq 1 ] || { [ "$(($(date +%s) - $(cat last_heal)))" -gt 90 ] && [ "$(($(date +%s) - $(cat last_heal)))" -lt 300 ]; }); then
       (
         run_curl_exec "${URL}$(cat HEAL)" > "$TMP/SRC"
       ) </dev/null > /dev/null 2>&1 &
@@ -76,6 +72,7 @@ cf_access() {
       cat HP > FULL
       cat HP > old_HP
       date +%s > last_heal
+      FIRST_HEAL=0
 
     elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
          ! grep -q -o 'txt smpl grey' "$TMP/SRC" && \
@@ -108,7 +105,7 @@ cf_access() {
     fi
   done
 
-  unset cf_access _random
+  unset cf_access _random FIRST_DODGE FIRST_HEAL
   func_unset
   printf "ClanFight ok\n"
   sleep 10s

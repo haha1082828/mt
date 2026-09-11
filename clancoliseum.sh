@@ -36,6 +36,8 @@ clancoliseum_fight() {
   cf_access
   > BREAK_LOOP
   cat USH > old_HP
+  FIRST_DODGE=1
+  FIRST_HEAL=1
   echo $(($(date +%s) - 20)) > last_dodge
   echo $(($(date +%s) - 90)) > last_heal
   echo $(($(date +%s) - LA)) > last_atk
@@ -43,8 +45,7 @@ clancoliseum_fight() {
   FIGHT_BREAK=$(($(date +%s) + 600))
   until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$FIGHT_BREAK" ]; do
     if ! grep -q -o 'txt smpl grey' "$src_ram" && \
-         [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && \
-         [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ] && \
+         ([ "$FIRST_DODGE" -eq 1 ] || { [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ]; }) && \
          awk -v ush="$(cat USH)" -v oldhp="$(cat old_HP)" 'BEGIN { exit !(ush < oldhp) }'; then
       (
         run_curl_exec "${URL}$(cat DODGE)" > "$src_ram"
@@ -53,10 +54,10 @@ clancoliseum_fight() {
       cf_access
       cat USH > old_HP
       date +%s > last_dodge
+      FIRST_DODGE=0
 
     elif awk -v ush="$(cat USH)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
-       [ "$(($(date +%s) - $(cat last_heal)))" -gt 90 ] && \
-       [ "$(($(date +%s) - $(cat last_heal)))" -lt 300 ]; then
+       ([ "$FIRST_HEAL" -eq 1 ] || { [ "$(($(date +%s) - $(cat last_heal)))" -gt 90 ] && [ "$(($(date +%s) - $(cat last_heal)))" -lt 300 ]; }); then
       (
         run_curl_exec "${URL}$(cat HEAL)" > "$src_ram"
       ) </dev/null > /dev/null 2>&1 &
@@ -64,6 +65,7 @@ clancoliseum_fight() {
       cf_access
       cat USH > old_HP
       date +%s > last_heal
+      FIRST_HEAL=0
 
     elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
          ! grep -q -o 'txt smpl grey' "$src_ram" && \

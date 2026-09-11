@@ -120,7 +120,7 @@ coliseum_fight() {
             time_since_last_dodge=$((now - last_dodge))
             time_since_last_atk=$((now - last_atk))
 
-            if ! grep -q -o 'txt smpl grey' "$src_ram" && \
+            if [ -n "$DODGE" ] && \
                  ([ "$FIRST_DODGE" -eq 1 ] || { [ "$time_since_last_dodge" -gt 20 ] && [ "$time_since_last_dodge" -lt 300 ]; }) && \
                  awk -v ush="$USH" -v oldhp="$OLDHP" 'BEGIN { exit !(ush < oldhp) }'; then
                 (
@@ -135,7 +135,7 @@ coliseum_fight() {
 
 
             elif awk -v ush="$USH" -v hlhp="$HLHP" 'BEGIN { exit !(ush <= hlhp) }' && \
-               ([ "$FIRST_HEAL" -eq 1 ] || { [ "$time_since_last_heal" -gt 90 ] && [ "$time_since_last_heal" -lt 300 ]; }); then
+               ([ "$FIRST_HEAL" -eq 1 ] || { [ "$time_since_last_heal" -ge 90 ] && [ "$time_since_last_heal" -lt 300 ]; }); then
                 (
                     run_curl_exec "${URL}${HEAL}" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
@@ -146,8 +146,8 @@ coliseum_fight() {
                 last_heal=`date +%s`
                 FIRST_HEAL=0
                 last_atk=`date +%s`
-            elif awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk >= atktime) }' && \
-                 ! grep -q -o 'txt smpl grey' "$src_ram" && \
+            elif [ -n "$ATKRND" ] && \
+                 awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk >= atktime) }' && \
                  awk -v rhp="$RHP" -v enh="$ENH" 'BEGIN { exit !(rhp < enh) }'; then
                 (
                     run_curl_exec "${URL}${ATKRND}" > "$src_ram"
@@ -156,7 +156,7 @@ coliseum_fight() {
                 cl_access
                 last_atk=$now
 
-            elif awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk > atktime) }'; then
+            elif [ -n "$ATK" ] && awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk >= atktime) }'; then
                 (
                     run_curl_exec "${URL}${ATK}" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &

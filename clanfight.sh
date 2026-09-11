@@ -3,19 +3,24 @@ clanfight_fight() {
   LA=4
   HPER=40
   RPER=15
-  awk -v ush="$(cat FULL)" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
+  
+  rm -f "$TMP/FULL"
 
 cf_access() {
     local src="$TMP/SRC"
     [ -f "$src" ] || return 1
-    grep -o -E '(/[a-z]+/[a-z]{0,4}at[a-z]{0,3}k/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$src" | sed -n '1p' > ATK 2>/dev/null
-    grep -o -E '(/[a-z]+/at[a-z]{0,3}k[a-z]{3,6}/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$src" | sed -n 1p > ATKRND 2>/dev/null
-    grep -o -E '(/clanfight/dodge/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$src" | sed -n 1p > DODGE 2>/dev/null
-    grep -o -E '(/clanfight/heal/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$src" | sed -n 1p > HEAL 2>/dev/null
-    grep -o -E '(/clanfight/grass/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+)' "$src" > GRASS 2>/dev/null
+    grep -o -E '(/[a-z]+/[a-z]{0,4}at[a-z]{0,3}k/?[?]r[=][0-9]+)' "$src" | sed -n '1p' > ATK 2>/dev/null
+    grep -o -E '(/[a-z]+/at[a-z]{0,3}k[a-z]{3,6}/?[?]r[=][0-9]+)' "$src" | sed -n 1p > ATKRND 2>/dev/null
+    grep -o -E '(/clanfight/dodge/?[?]r[=][0-9]+)' "$src" | sed -n 1p > DODGE 2>/dev/null
+    grep -o -E '(/clanfight/heal/?[?]r[=][0-9]+)' "$src" | sed -n 1p > HEAL 2>/dev/null
+    grep -o -E '(/clanfight/grass/?[?]r[=][0-9]+)' "$src" > GRASS 2>/dev/null
     grep -o -E '([[:upper:]][[:lower:]]{0,20}( [[:upper:]][[:lower:]]{0,17})?)[[:space:]]\(' "$src" | sed -n 's,\ [(],,;s,\ ,_,;2p' > CLAN 2>/dev/null
     grep -o -E "(hp)[^A-Za-z0-9]{1,4}[0-9]{1,6}" "$src" | grep -o -E '[0-9]+' | head -n 1 > HP 2>/dev/null
     grep -o -E "(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}" "$src" | grep -o -E '[0-9]+' | head -n 1 > HP2 2>/dev/null
+
+    if [ ! -s "$TMP/FULL" ]; then
+      cat HP > "$TMP/FULL" 2>/dev/null
+    fi
 
     read -r hp < HP 2>/dev/null
     read -r full < "$TMP/FULL" 2>/dev/null
@@ -69,7 +74,6 @@ cf_access() {
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
       cf_access
-      cat HP > FULL
       cat HP > old_HP
       date +%s > last_heal
       FIRST_HEAL=0
@@ -117,10 +121,6 @@ clanfight_start() {
   cd "$TMP" || return 1
   case `date +%H:%M` in
   10:5[5-9]|18:5[5-9])
-    (
-      run_curl_exec "$URL/train" | grep -o -E '\(([0-9]+)\)' | sed 's/[()]//g' > "$TMP/FULL"
-    ) </dev/null > /dev/null 2>&1 &
-    time_exit 17
     (
       run_curl_exec "$URL/clanfight/?close=reward" > "$TMP/SRC"
     ) </dev/null > /dev/null 2>&1 &

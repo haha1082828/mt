@@ -6,16 +6,22 @@ clancoliseum_fight() {
   LA=4
   HPER=40
   RPER=15
+  
+  rm -f "$full_ram"
 
     cf_access() {
     [ -f "$src_ram" ] || return 1
-    grep -o -E '(/clancoliseum/[a-z]{0,4}at[a-z]{0,3}k/[?]r[=][0-9]+)' "$src_ram" | sed -n '1p' > ATK 2>/dev/null
-    grep -o -E '(/clancoliseum/at[a-z]{0,3}k[a-z]{3,6}/[?]r[=][0-9]+)' "$src_ram" | sed -n 1p > ATKRND 2>/dev/null
-    grep -o -E '(/clancoliseum/dodge/[?]r[=][0-9]+)' "$src_ram" | sed -n 1p > DODGE 2>/dev/null
-    grep -o -E '(/clancoliseum/heal/[?]r[=][0-9]+)' "$src_ram" | sed -n 1p > HEAL 2>/dev/null
+    grep -o -E '(/clancoliseum/[a-z]{0,4}at[a-z]{0,3}k/?[?]r[=][0-9]+)' "$src_ram" | sed -n '1p' > ATK 2>/dev/null
+    grep -o -E '(/clancoliseum/at[a-z]{0,3}k[a-z]{3,6}/?[?]r[=][0-9]+)' "$src_ram" | sed -n 1p > ATKRND 2>/dev/null
+    grep -o -E '(/clancoliseum/dodge/?[?]r[=][0-9]+)' "$src_ram" | sed -n 1p > DODGE 2>/dev/null
+    grep -o -E '(/clancoliseum/heal/?[?]r[=][0-9]+)' "$src_ram" | sed -n 1p > HEAL 2>/dev/null
     grep -o -E '([[:upper:]][[:lower:]]{0,20}( [[:upper:]][[:lower:]]{0,17})?)[[:space:]]\(' "$src_ram" | sed -n 's,\ [(],,;s,\ ,_,;2p' > CLAN 2>/dev/null
     grep -o -E "(hp)[^A-Za-z0-9]{1,4}[0-9]{1,6}" "$src_ram" | grep -o -E '[0-9]+' | head -n 1 > USH 2>/dev/null
     grep -o -E "(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}" "$src_ram" | grep -o -E '[0-9]+' | head -n 1 > ENH 2>/dev/null
+
+    if [ ! -s "$full_ram" ]; then
+      cat USH > "$full_ram" 2>/dev/null
+    fi
 
     read -r ush < USH 2>/dev/null
     read -r full < "$full_ram" 2>/dev/null
@@ -123,10 +129,6 @@ clancoliseum_start() {
     fi
 
     (
-      run_curl_exec "$URL/train" | grep -o -E '\(([0-9]+)\)' | sed 's/[()]//g' > "$full_ram"
-    ) </dev/null > /dev/null 2>&1 &
-    time_exit 17
-    (
       run_curl_exec "$URL/clancoliseum/enterFight" > "$src_ram"
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
@@ -161,7 +163,7 @@ clancoliseum_start() {
         run_curl_exec "${URL}/clancoliseum/" > "$src_ram"
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
-      ACCESS=`grep -o -E '(/clancoliseum/[a-z]+/[?]r[=][0-9]+)' "$src_ram" | grep -v 'dodge' | sed -n '1p'`
+      ACCESS=`grep -o -E '(/clancoliseum/[a-z]+/?[?]r[=][0-9]+)' "$src_ram" | grep -v 'dodge' | sed -n '1p'`
       sleep 3
     done
 

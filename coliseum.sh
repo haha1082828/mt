@@ -1,30 +1,34 @@
 # shellcheck disable=SC2155
 coliseum_fight() {
+    # Arquivos de batalha gravados no diretorio da conta (sem mktemp)
     src_ram="$TMP/col_src"
     full_ram="$TMP/col_full"
-    cd "$TMP" || return 1
 
-    LA=4
+    LA=5
     HPER=38
     RPER=5
 
     printf "Coliseum\n"
 
+    # HP maximo
     (
         run_curl_exec "$URL/train" | grep -o -E '\(([0-9]+)\)' | sed 's/[()]//g' > "$full_ram"
     ) </dev/null > /dev/null 2>&1 &
     time_exit 20
 
+    # Desativa graficos
     (
         run_curl_exec "$URL/settings/graphics/0" > /dev/null
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
 
+    # Pagina do coliseu
     (
         run_curl_exec "$URL/coliseum" > "$src_ram"
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
 
+    # Encerra luta pendente
     if grep -q -o '?end_fight' "$src_ram"; then
         (
             run_curl_exec "$URL/coliseum/?end_fight=true" > /dev/null
@@ -39,7 +43,15 @@ coliseum_fight() {
     access_link=`grep -o -E '/coliseum(/[A-Za-z]+/[?]r[=][0-9]+|/)' "$src_ram" | sed -n '1p'`
     go_stop=`grep -o -E '/coliseum/enterFight/[?]r[=][0-9]+' "$src_ram"`
 
-    if [ -n "$go_stop" ]; then
+    # LUTA JA EM ANDAMENTO: o worker relancado no meio de uma luta do coliseu
+    # (batalha_retomar) encontra a pagina de combate, sem link de inscricao.
+    # Antes isso caia em "nao foi possivel iniciar" e a conta abandonava.
+    _col_estado=`estado_luta "$src_ram" coliseum`
+
+    if [ -n "$go_stop" ] || [ "$_col_estado" = "luta" ]; then
+      if [ -n "$go_stop" ]; then
+        # Inscricao: a batalha fica anotada para o worker relancado voltar.
+        batalha_marcar coliseum
         printf "  Entering...\n"
         (
             run_curl_exec "${URL}${go_stop}" > "$src_ram"
@@ -59,102 +71,146 @@ coliseum_fight() {
             printf " Preparing...\n"
             sleep 3s
         done
+      else
+        printf "  Luta do coliseu em andamento - voltando para ela\n"
+      fi
 
         cl_access() {
-            [ -f "$src_ram" ] || return 1
-            grep -o -E '/coliseum/atk/[?]r[=][0-9]+' "$src_ram" | sed -n 1p > ATK 2>/dev/null
-            grep -o -E '/coliseum/atkrnd/[?]r[=][0-9]+' "$src_ram" > ATKRND 2>/dev/null
-            grep -o -E '/coliseum/dodge/[?]r[=][0-9]+' "$src_ram" > DODGE 2>/dev/null
-            grep -o -E '/coliseum/heal/[?]r[=][0-9]+' "$src_ram" > HEAL 2>/dev/null
+            # Os relogios de cura/esquiva/ataque eram zerados AQUI, a cada
+            # leitura: a recarga de 90s da cura nunca valia e, com a vida
+            # baixa, a cura era tentada quase a cada volta. Sairam para antes
+            # do laco, onde sao iniciados uma vez so.
 
-            grep -o -E '(hp)[^A-Za-z0-9]{1,4}[0-9]+' "$src_ram" | grep -o -E '[0-9]+' | head -n 1 > USH 2>/dev/null
-            grep -o -E '(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}' "$src_ram" | grep -o -E '[0-9]+' | head -n 1 > ENH 2>/dev/null
+            USH=`grep -o -E '(hp)[^A-z0-9]{1,4}[0-9]{2,5}' "$src_ram" | grep -o -E '[0-9]{2,5}' | sed 's,\ ,,g'`
+            ENH=`grep -o -E '(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}' "$src_ram" | sed -n 's,nbsp[;],,;s,\ ,,;1p'`
+            USER=`grep -o -E '([[:upper:]][[:lower:]]{0,15}( [[:upper:]][[:lower:]]{0,13})?)[[:space:]][^[:alnum:]]s' "$src_ram" | sed -n 's,\ [<]s,,;s,\ ,_,;2p'`
 
-            read -r ush < USH 2>/dev/null
-            read -r full < "$full_ram" 2>/dev/null
+            ATK=`grep -o -E '/coliseum/atk/[?]r[=][0-9]+' "$src_ram" | sed -n 1p`
+            ATKRND=`grep -o -E '/coliseum/atkrnd/[?]r[=][0-9]+' "$src_ram"`
+            DODGE=`grep -o -E '/coliseum/dodge/[?]r[=][0-9]+' "$src_ram"`
+            HEAL=`grep -o -E '/coliseum/heal/[?]r[=][0-9]+' "$src_ram"`
 
-            awk -v ush="${ush:-0}" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }' > RHP
-            awk -v ush="${full:-0}" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }' > HLHP
+            RHP=`awk -v ush="$USH" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }'`
+            HLHP=`awk -v ush="$(cat "$full_ram")" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }'`
 
             if grep -q -o '/dodge/' "$src_ram"; then
+                # A pagina respondeu com a luta: sessao confirmada.
+                _reconf=0
                 sessao_marcar
-                printf "Em batalha - HP: %s\n" "${ush:-0}"
+                printf "Em batalha - HP: %s\n" "$USH"
             else
-                if grep -q -o '?end_fight=true' "$src_ram"; then
-                    if awk -v ltime="$(($(date +%s) - first_time))" 'BEGIN { exit !(ltime < 300) }'; then
-                        (
-                            run_curl_exec "${URL}/coliseum" > "$src_ram"
-                        ) </dev/null > /dev/null 2>&1 &
-                        time_exit 17
-                        printf "Fim de batalha detectado.\n"
-                    fi
-                else
-                    echo 1 > BREAK_LOOP
-                    printf "Battle over.\n"
-                    sleep 2s
+                # RECONFIRMA antes de decidir: uma unica leitura sem /dodge/
+                # pode ser transicao, soluco de rede ou um link vazio ter
+                # baixado a home. Rele /coliseum uma vez e reavalia.
+                if [ "${_reconf:-0}" = 0 ]; then
+                    _reconf=1
+                    (
+                        run_curl_exec "${URL}/coliseum" > "$src_ram"
+                    ) </dev/null > /dev/null 2>&1 &
+                    time_exit 17
+                    cl_access
+                    return
+                fi
+                _reconf=0
+                # Quem decide o fim e o jogo: morte, ou o ?end_fight da tela
+                # de encerramento (luta_acabou, em info.sh). Antes o
+                # ?end_fight so relia a pagina, sem encerrar, e o laco seguia
+                # mandando acoes ate o teto; e qualquer outra leitura sem
+                # esquiva encerrava a luta com a conta viva.
+                if luta_acabou "$src_ram" coliseum; then
+                    BREAK_LOOP=1
+                    printf "Battle over. (%s)\n" "$LUTA_MOTIVO"
                 fi
             fi
         }
-        
+
+        luta_inicio coliseum
         cl_access
-        > BREAK_LOOP
-        cat USH > old_HP
-        echo $(($(date +%s) - 20)) > last_dodge
-        echo $(($(date +%s) - 90)) > last_heal
-        echo $(($(date +%s) - LA)) > last_atk
+        OLDHP=$USH
+        BREAK_LOOP=""
         first_time=`date +%s`
+        last_heal=$(($(date +%s) - 90))
+        last_dodge=$(($(date +%s) - 20))
+        last_atk=$(($(date +%s) - LA))
 
-        COL_BREAK=$(($(date +%s) + 600))
-        until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$COL_BREAK" ]; do
-            cl_access
-            if ! grep -q -o 'txt smpl grey' "$src_ram" && \
-               [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && \
-               [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ] && \
-               awk -v ush="$(cat USH)" -v oldhp="$(cat old_HP)" 'BEGIN { exit !(ush < oldhp) }'; then
+        # TETO DE SEGURANCA (luta_teto, em info.sh): so segura o laco que
+        # nunca resolve. Quem encerra a luta e o jogo, pelo luta_acabou.
+        #
+        # LINK VAZIO NUNCA VIRA REQUISICAO: cada ramo exige o proprio link
+        # na pagina; "${URL}${HEAL}" com HEAL vazio pedia a pagina inicial.
+        COL_BREAK=`luta_teto`
+        until [ -n "$BREAK_LOOP" ] || [ "$(date +%s)" -gt "$COL_BREAK" ]; do
+            now=`date +%s`
+            time_since_last_heal=$((now - last_heal))
+            time_since_last_dodge=$((now - last_dodge))
+            time_since_last_atk=$((now - last_atk))
+
+            if [ -n "$HEAL" ] && \
+               awk -v ush="$USH" -v hlhp="$HLHP" 'BEGIN { exit !(ush < hlhp) }' && \
+               [ "$time_since_last_heal" -gt 90 ] && [ "$time_since_last_heal" -lt 300 ]; then
                 (
-                    run_curl_exec "${URL}$(cat DODGE)" > "$src_ram"
+                    run_curl_exec "${URL}${HEAL}" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 17
                 cl_access
-                cat USH > old_HP
-                date +%s > last_dodge
+                # HP maximo (full_ram) preservado: vem do /train. Troca-lo
+                # pelo HP atual pos-cura fazia o limiar HLHP cair a cada
+                # golpe e a conta "achar" que continuava com HP cheio.
+                last_heal=$now
+                last_atk=$now
 
-            elif awk -v ush="$(cat USH)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
-                 [ "$(($(date +%s) - $(cat last_heal)))" -gt 90 ] && \
-                 [ "$(($(date +%s) - $(cat last_heal)))" -lt 300 ]; then
+            elif [ -n "$DODGE" ] && ! grep -q -o 'txt smpl grey' "$src_ram" && \
+                 [ "$time_since_last_dodge" -gt 20 ] && [ "$time_since_last_dodge" -lt 300 ] && \
+                 awk -v ush="$USH" -v oldhp="$OLDHP" 'BEGIN { exit !(ush < oldhp) }'; then
                 (
-                    run_curl_exec "${URL}$(cat HEAL)" > "$src_ram"
+                    run_curl_exec "${URL}${DODGE}" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 17
                 cl_access
-                cat USH > "$full_ram"
-                cat USH > old_HP
-                date +%s > last_heal
+                OLDHP=$USH
+                last_dodge=$now
+                last_atk=$now
 
-            elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
+            elif [ -n "$ATKRND" ] && \
+                 awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
                  ! grep -q -o 'txt smpl grey' "$src_ram" && \
-                 awk -v rhp="$(cat RHP)" -v enh="$(cat ENH)" 'BEGIN { exit !(rhp < enh) }'; then
+                 awk -v rhp="$RHP" -v enh="$ENH" 'BEGIN { exit !(rhp < enh) }'; then
                 (
-                    run_curl_exec "${URL}$(cat ATKRND)" > "$src_ram"
+                    run_curl_exec "${URL}${ATKRND}" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 17
                 cl_access
-                date +%s > last_atk
+                last_atk=$now
 
-            elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk > atktime) }'; then
+            elif [ -n "$ATK" ] && \
+                 awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk > atktime) }'; then
                 (
                     run_curl_exec "${URL}${ATK}" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 17
                 cl_access
-                date +%s > last_atk
+                last_atk=$now
+
             else
-                (
-                    run_curl_exec "${URL}/coliseum" > "$src_ram"
-                ) </dev/null > /dev/null 2>&1 &
-                time_exit 17
-                cl_access
-                sleep 1s
+                # RECARGA DE ATAQUE — UMA REQUISICAO POR CICLO.
+                # O ultimo golpe ja trouxe o HP. So relemos a pagina quando o
+                # alvo esta momentaneamente invulneravel (grey); fora disso
+                # apenas esperamos o restante da recarga, sem nova requisicao,
+                # para o intervalo entre golpes ficar em 4-5s.
+                # Rele tambem quando a leitura nao tem link de ataque: a luta
+                # so termina pelo luta_acabou, e sem esta releitura o laco
+                # dormiria sobre uma pagina sem acao ate o teto.
+                if grep -q -o 'txt smpl grey' "$src_ram" || [ -z "$ATK" ]; then
+                    (
+                        run_curl_exec "${URL}/coliseum" > "$src_ram"
+                    ) </dev/null > /dev/null 2>&1 &
+                    time_exit 17
+                    cl_access
+                    [ -n "$ATK" ] || sleep 1
+                else
+                    _resta=$(( LA - time_since_last_atk ))
+                    [ "$_resta" -gt 0 ] && sleep "$_resta"
+                fi
             fi
         done
 

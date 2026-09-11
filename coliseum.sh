@@ -34,6 +34,7 @@ coliseum_fight() {
             run_curl_exec "$URL/coliseum/?end_fight=true" > /dev/null
         ) </dev/null > /dev/null 2>&1 &
         time_exit 17
+
         (
             run_curl_exec "$URL/coliseum" > "$src_ram"
         ) </dev/null > /dev/null 2>&1 &
@@ -45,25 +46,37 @@ coliseum_fight() {
 
     if [ -n "$go_stop" ]; then
         printf "  Entering...\n"
+
         (
             run_curl_exec "${URL}${go_stop}" > "$src_ram"
         ) </dev/null > /dev/null 2>&1 &
         time_exit 17
 
         access_link=`grep -o -E '/coliseum(/[A-Za-z]+/[?]r[=][0-9]+|/)' "$src_ram" | grep -v 'dodge' | sed -n 1p`
+
         printf " Preparing for battle, waiting for other players...\n"
 
         first_time=`date +%s`
+
         until grep -q -o 'coliseum/dodge/' "$src_ram" || awk -v ltime="$(($(date +%s) - first_time))" 'BEGIN { exit !(ltime > 30) }'; do
             (
                 run_curl_exec "${URL}${access_link}" > "$src_ram"
             ) </dev/null > /dev/null 2>&1 &
             time_exit 17
+
             access_link=`grep -o -E '/(coliseum/[A-Za-z]+/[?]r[=][0-9]+|coliseum)' "$src_ram" | grep -v 'dodge' | sed -n 1p`
+
             printf " Preparing...\n"
             sleep 3s
         done
 
+        # ------------------------------------------------------------------
+        # Leitura do estado atual da batalha.
+        #
+        # IMPORTANTE:
+        # Os timers NAO sao inicializados aqui.
+        # cl_access() pode ser chamado varias vezes durante a batalha.
+        # ------------------------------------------------------------------
         cl_access() {
             USH=`grep -o -E '(hp)[^A-z0-9]{1,4}[0-9]{2,5}' "$src_ram" | grep -o -E '[0-9]{2,5}' | sed 's,\ ,,g'`
             ENH=`grep -o -E '(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}' "$src_ram" | sed -n 's,nbsp[;],,;s,\ ,,;1p'`
@@ -75,7 +88,9 @@ coliseum_fight() {
             HEAL=`grep -o -E '/coliseum/heal/[?]r[=][0-9]+' "$src_ram"`
 
             RHP=`awk -v ush="${USH:-0}" -v rper="$RPER" 'BEGIN { printf "%.0f", ush * rper / 100 + ush }'`
+
             read -r full_val < "$full_ram" 2>/dev/null
+
             HLHP=`awk -v ush="${full_val:-0}" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }'`
 
             if grep -q -o '/dodge/' "$src_ram"; then
@@ -98,82 +113,152 @@ coliseum_fight() {
             fi
         }
 
-        # Inicializa os timers UMA vez, no inicio da batalha.
-        # Eles nao sao mais reinicializados dentro de cl_access().
-        last_heal=$(date +%s)
-        last_dodge=$(date +%s)
-        last_atk=$(date +%s)
+        # ------------------------------------------------------------------
+        # TIMERS INICIAIS
+        #
+        # Mantem a mecanica original do Coliseu:
+        # - cura inicial livre
+        # - esquiva inicial livre
+        # - ataque inicial segue a referencia de LA
+        #
+        # Estes valores sao definidos UMA unica vez.
+        # ------------------------------------------------------------------
+        _col_now=`date +%s`
+
+        last_heal=$((_col_now - 90))
+        last_dodge=$((_col_now - 20))
+        last_atk=$((_col_now - LA))
+
+        unset _col_now
 
         cl_access
+
         OLDHP=$USH
         BREAK_LOOP=""
         first_time=`date +%s`
 
-        # Limite de tempo: BREAK_LOOP so e definido quando a luta
-        # termina. Se o estado nunca resolver, o laco era infinito.
+        # Limite de tempo da batalha
         COL_BREAK=$(($(date +%s) + 600))
+
         until [ -n "$BREAK_LOOP" ] || [ "$(date +%s)" -gt "$COL_BREAK" ]; do
             now=`date +%s`
+
             time_since_last_heal=$((now - last_heal))
             time_since_last_dodge=$((now - last_dodge))
             time_since_last_atk=$((now - last_atk))
 
+            # --------------------------------------------------------------
+            # CURA
+            #
+            # Primeira cura e livre porque last_heal comeca em agora - 90.
+            # Depois de executar a cura, o timer e reiniciado.
+            # HP precisa estar abaixo de 38%.
+            # --------------------------------------------------------------
             if awk -v ush="$USH" -v hlhp="$HLHP" 'BEGIN { exit !(ush < hlhp) }' && \
-               [ "$time_since_last_heal" -gt 90 ] && [ "$time_since_last_heal" -lt 300 ]; then
+               [ "$time_since_last_heal" -gt 90 ] && \
+               [ "$time_since_last_heal" -lt 300 ]; then
+
                 (
                     run_curl_exec "${URL}${HEAL}" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 17
-                cl_access
-                echo "$USH" > "$full_ram"
-                last_heal=$now
-                last_atk=$now
 
+                cl_access
+
+                echo "$USH" > "$full_ram"
+
+                last_heal=`date +%s`
+
+                # Mantem a regra original: cura tambem reinicia a referencia
+                # do proximo ataque.
+                last_atk=`date +%s`
+
+            # --------------------------------------------------------------
+            # ESQUIVA
+            #
+            # Primeira esquiva e livre porque last_dodge comeca em agora - 20.
+            # Depois de executar a esquiva, inicia o intervalo de 20 s.
+            # A esquiva continua dependendo da perda de HP.
+            # --------------------------------------------------------------
             elif ! grep -q -o 'txt smpl grey' "$src_ram" && \
-                 [ "$time_since_last_dodge" -gt 20 ] && [ "$time_since_last_dodge" -lt 300 ] && \
+                 [ "$time_since_last_dodge" -gt 20 ] && \
+                 [ "$time_since_last_dodge" -lt 300 ] && \
                  awk -v ush="$USH" -v oldhp="$OLDHP" 'BEGIN { exit !(ush < oldhp) }'; then
+
                 (
                     run_curl_exec "${URL}${DODGE}" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 17
-                cl_access
-                OLDHP=$USH
-                last_dodge=$now
-                last_atk=$now
 
+                cl_access
+
+                OLDHP=$USH
+                last_dodge=`date +%s`
+
+                # Mantem a regra original de reiniciar a referencia do ataque
+                # depois da esquiva.
+                last_atk=`date +%s`
+
+            # --------------------------------------------------------------
+            # ATAQUE ALEATORIO
+            #
+            # A condicao original do Coliseu e preservada:
+            # latk != LA
+            #
+            # NAO foi convertida para > LA, pois isso mudaria a mecanica
+            # especifica do ataque aleatorio.
+            # --------------------------------------------------------------
             elif awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
                  ! grep -q -o 'txt smpl grey' "$src_ram" && \
                  awk -v rhp="$RHP" -v enh="$ENH" 'BEGIN { exit !(rhp < enh) }'; then
+
                 (
                     run_curl_exec "${URL}${ATKRND}" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 17
-                cl_access
-                last_atk=$now
 
+                cl_access
+
+                last_atk=`date +%s`
+
+            # --------------------------------------------------------------
+            # ATAQUE NORMAL
+            #
+            # O ataque normal continua usando LA como intervalo:
+            # latk > LA
+            # --------------------------------------------------------------
             elif awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk > atktime) }'; then
+
                 (
                     run_curl_exec "${URL}${ATK}" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 17
-                cl_access
-                last_atk=$now
 
+                cl_access
+
+                last_atk=`date +%s`
+
+            # --------------------------------------------------------------
+            # ATUALIZA A PAGINA
+            # --------------------------------------------------------------
             else
                 (
                     run_curl_exec "${URL}/coliseum" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 17
+
                 cl_access
                 sleep 1s
             fi
         done
 
         rm -f "$src_ram" "$full_ram"
+
         unset last_heal last_dodge last_atk USH ENH USER ATK ATKRND DODGE HEAL BREAK_LOOP
         func_unset
 
         printf "The battle is over!\n"
+
     else
         printf "It was not possible to start the battle at this time.\n"
     fi
@@ -198,12 +283,14 @@ coliseum_start() {
 
             while grep -q -o -E '/coliseum/[?]quest_t[=]quest&quest_id[=]11&qz[=][a-z0-9]+' "$TMP/SRC"; do
                 coliseum_fight
+
                 (
                     run_curl_exec "${URL}/quest/" > "$TMP/SRC"
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 20
 
                 ENDQUEST=`grep -o -E '/quest/end/11[?]r[=][A-Za-z0-9]+' "$TMP/SRC"`
+
                 if [ -n "$ENDQUEST" ]; then
                     (
                         run_curl_exec "${URL}${ENDQUEST}" > "$TMP/SRC"

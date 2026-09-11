@@ -3,6 +3,7 @@ king_fight() {
   LA=4
   HPER="38"
   RPER=5
+  rm -f FULL
 
   cl_access() {
     local src="$TMP/SRC"
@@ -11,14 +12,21 @@ king_fight() {
     set -- `combate_ler king "$HPER" "$RPER" "$src"`
     _emluta="$1"; RHP="$2"; HLHP="$3"; _hpat="$4"; _hp2at="$5"
     
+    # Grava o HP máximo assim que pegar o hp atual (_hpat) e refaz HLHP pra não depender do modulo externo
+    if [ ! -s FULL ] && [ -n "$_hpat" ]; then
+      echo "$_hpat" > FULL
+    fi
+    read -r _fullat < FULL 2>/dev/null
+    HLHP=$(awk -v ush="${_fullat:-0}" -v hper="$HPER" 'BEGIN { printf "%.0f", ush * hper / 100 }')
+    
     grep -o -E '([[:upper:]][[:lower:]]{0,15}( [[:upper:]][[:lower:]]{0,13})?)[[:space:]][^[:alnum:][:space:]]' "$src" | sed -n 's,\ [<]s,,;s,\ ,_,;2p' > USER 2>/dev/null
     
-    grep -o -E '(/king/dodge/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$src" | sed -n 1p > DODGE 2>/dev/null
-    grep -o -E '(/king/heal/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$src" | sed -n 1p > HEAL 2>/dev/null
-    grep -o -E '(/king/kingatk/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$src" | sed -n 1p > KINGATK 2>/dev/null
-    grep -o -E '(/king/stone/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$src" | sed -n 1p > STONE 2>/dev/null
-    grep -o -E '(/king/at[a-z]{0,3}k[a-z]{3,6}/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$src" | sed -n 1p > ATKRND 2>/dev/null
-    grep -o -E '(/king/[a-z]{0,4}at[a-z]{0,3}k/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$src" | grep -v 'kingatk' | sed -n 1p > ATK 2>/dev/null
+    grep -o -E '(/king/dodge/?[?]r[=][0-9]+)' "$src" | sed -n 1p > DODGE 2>/dev/null
+    grep -o -E '(/king/heal/?[?]r[=][0-9]+)' "$src" | sed -n 1p > HEAL 2>/dev/null
+    grep -o -E '(/king/kingatk/?[?]r[=][0-9]+)' "$src" | sed -n 1p > KINGATK 2>/dev/null
+    grep -o -E '(/king/stone/?[?]r[=][0-9]+)' "$src" | sed -n 1p > STONE 2>/dev/null
+    grep -o -E '(/king/at[a-z]{0,3}k[a-z]{3,6}/?[?]r[=][0-9]+)' "$src" | sed -n 1p > ATKRND 2>/dev/null
+    grep -o -E '(/king/[a-z]{0,4}at[a-z]{0,3}k/?[?]r[=][0-9]+)' "$src" | grep -v 'kingatk' | sed -n 1p > ATK 2>/dev/null
 
     if [ "$_emluta" = "1" ] || grep -q -E '/king/(dodge|atk|heal)/' "$src"; then
       sessao_marcar
@@ -29,7 +37,7 @@ king_fight() {
       ) </dev/null > /dev/null 2>&1 &
       time_exit 17
       
-      grep -o -E '(/king/unrip/[^A-Za-z0-9_]r[^A-Za-z0-9_][0-9]+)' "$src" | sed -n 1p > UNRIP 2>/dev/null
+      grep -o -E '(/king/unrip/?[?]r[=][0-9]+)' "$src" | sed -n 1p > UNRIP 2>/dev/null
       if [ -s UNRIP ]; then
         (
           run_curl_exec "${URL}$(cat UNRIP)" > "$src"
@@ -62,7 +70,6 @@ king_fight() {
   _last_dodge=$(( _agora - 20 ))
   _last_heal=$(( _agora - 90 ))
   _last_atk=$(( _agora - LA ))
-  _fullat=`cat FULL 2>/dev/null`
   echo "$_last_dodge" > last_dodge
   echo "$_last_heal"  > last_heal
   echo "$_last_atk"   > last_atk
@@ -98,7 +105,6 @@ king_fight() {
         ) </dev/null > /dev/null 2>&1 &
         time_exit 17
         cl_access
-        echo "$_hpat" > FULL; _fullat="$_hpat"
         echo "$_hpat" > old_HP
         _last_heal=`date +%s`; echo "$_last_heal" > last_heal; FIRST_HEAL=0
         sleep 0.3s
@@ -230,10 +236,6 @@ king_fight() {
 king_start() {
   case `date +%H:%M` in
   (12:2[5-9]|16:2[5-9]|22:2[5-9])
-    (
-      run_curl_exec "$URL/train" | grep -o -E '\(([0-9]+)\)' | sed 's/[()]//g' > "$TMP/FULL"
-    ) </dev/null > /dev/null 2>&1 &
-    time_exit 17
     (
       run_curl_exec "$URL/king/enterGame" > "$TMP/SRC"
     ) </dev/null > /dev/null 2>&1 &

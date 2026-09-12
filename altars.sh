@@ -87,7 +87,7 @@ altars_fight() {
       cf_access
       date +%s > last_atk
 
-    elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk > atktime) }'; then
+    elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk >= atktime) }'; then
       (
         run_curl_exec "${URL}$(cat ATK)" > "$TMP/src.html"
       ) </dev/null > /dev/null 2>&1 &

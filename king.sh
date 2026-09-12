@@ -109,7 +109,7 @@ king_fight() {
         _last_heal=`date +%s`; echo "$_last_heal" > last_heal; FIRST_HEAL=0
         sleep 0.3s
 
-      elif [ $(( _agora - _last_atk )) -gt "$LA" ]; then
+      elif [ $(( _agora - _last_atk )) -ge "$LA" ]; then
         if [ -s KINGATK ]; then
           (
             run_curl_exec "${URL}$(cat KINGATK)" > "$TMP/SRC"
@@ -181,7 +181,7 @@ king_fight() {
     else
       printf "King sniper — FINALIZACAO: %s%%\n" "$KPCT"
 
-      if [ $(( _agora - _last_atk )) -gt "$LA" ]; then
+      if [ $(( _agora - _last_atk )) -ge "$LA" ]; then
         if [ -s KINGATK ]; then
           (
             run_curl_exec "${URL}$(cat KINGATK)" > "$TMP/SRC"

@@ -65,10 +65,6 @@ coliseum_fight() {
         done
 
         cl_access() {
-            last_heal=$(($(date +%s) - 90))
-            last_dodge=$(($(date +%s) - 20))
-            last_atk=$(($(date +%s) - LA))
-
             USH=`grep -o -E '(hp)[^A-z0-9]{1,4}[0-9]{2,5}' "$src_ram" | grep -o -E '[0-9]{2,5}' | sed 's,\ ,,g'`
             ENH=`grep -o -E '(nbsp)[^A-Za-z0-9]{1,2}[0-9]{1,6}' "$src_ram" | sed -n 's,nbsp[;],,;s,\ ,,;1p'`
             USER=`grep -o -E '([[:upper:]][[:lower:]]{0,15}( [[:upper:]][[:lower:]]{0,13})?)[[:space:]][^[:alnum:]]s' "$src_ram" | sed -n 's,\ [<]s,,;s,\ ,_,;2p'`
@@ -106,6 +102,10 @@ coliseum_fight() {
         OLDHP=$USH
         BREAK_LOOP=""
         first_time=`date +%s`
+        
+        last_heal=$(($(date +%s) - 95))
+        last_dodge=$(($(date +%s) - 25))
+        last_atk=$(($(date +%s) - LA))
 
         # Limite de tempo: BREAK_LOOP so e definido quando a luta
         # termina. Se o estado nunca resolver, o laco era infinito.
@@ -139,7 +139,7 @@ coliseum_fight() {
                 last_dodge=$now
                 last_atk=$now
 
-            elif awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk != atktime) }' && \
+            elif awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk >= atktime) }' && \
                  ! grep -q -o 'txt smpl grey' "$src_ram" && \
                  awk -v rhp="$RHP" -v enh="$ENH" 'BEGIN { exit !(rhp < enh) }'; then
                 (
@@ -149,7 +149,7 @@ coliseum_fight() {
                 cl_access
                 last_atk=$now
 
-            elif awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk > atktime) }'; then
+            elif awk -v latk="$time_since_last_atk" -v atktime="$LA" 'BEGIN { exit !(latk >= atktime) }'; then
                 (
                     run_curl_exec "${URL}${ATK}" > "$src_ram"
                 ) </dev/null > /dev/null 2>&1 &

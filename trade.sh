@@ -13,7 +13,7 @@ func_trade() {
 
     printf "Trade\n"
 
-    # Reduzido o tempo de reserva padrao para 1 dia (em vez de 365)
+    # Reduzido o tempo de reserva padrao para 1 dia
     _dias=${FUNC_trade_dias:-1}
     case "$_dias" in ''|*[!0-9]*) _dias=1 ;; esac
 
@@ -78,24 +78,23 @@ use_blessing() {
 }
 
 clan_money() {
-    clan_id
+    [ -n "$CLD" ] || clan_id
     if [ -n "$CLD" ]; then
         printf "Clan money ...\n"
 
-        fetch_page "/arena/quit"
-        awk_code=`sed "s/href='/\n/g" "$TMP/SRC" | grep "attack/1" | head -n 1 | awk -F\/ '{ print $5 }' | tr -cd '[:digit:]'`
-        echo "$awk_code" > "$TMP/CODE"
+        # Acessa a pagina principal do cla para extrair a chave r=
+        fetch_page "/clan/${CLD}/"
 
-        printf "/clan/%s/money/?r=%s&silver=1000&gold=0&confirm=true&type=limit\n" "$CLD" "`cat "$TMP/CODE"`"
-        fetch_page "/clan/${CLD}/money/?r=$(cat "$TMP/CODE")&silver=1000&gold=0&confirm=true&type=limit"
+        _code=`grep -o -E '[?]r=[0-9]+' "$TMP/SRC" | head -n 1 | cut -d= -f2`
 
-        fetch_page "/arena/quit"
-        awk_code=`sed "s/href='/\n/g" "$TMP/SRC" | grep "attack/1" | head -n 1 | awk -F\/ '{ print $5 }' | tr -cd '[:digit:]'`
-        echo "$awk_code" > "$TMP/CODE"
-
-        printf "/clan/%s/money/?r=%s&silver=1000&gold=0&confirm=true&type=limit\n" "$CLD" "`cat "$TMP/CODE"`"
-        fetch_page "/clan/${CLD}/money/?r=$(cat "$TMP/CODE")&silver=1000&gold=0&confirm=true&type=limit"
-
-        printf "Clan money ok\n"
+        if [ -n "$_code" ]; then
+            printf "/clan/%s/money/?r=%s&silver=1000&gold=0&confirm=true&type=limit\n" "$CLD" "$_code"
+            fetch_page "/clan/${CLD}/money/?r=${_code}&silver=1000&gold=0&confirm=true&type=limit"
+            fetch_page "/clan/${CLD}/money/?r=${_code}&silver=1000&gold=0&confirm=true&type=limit"
+            printf "Clan money ok\n"
+        else
+            printf "Clan money: falha ao obter chave r=\n"
+        fi
+        unset _code
     fi
 }

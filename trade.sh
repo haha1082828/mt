@@ -65,6 +65,7 @@ use_blessing() {
     _ouro=`grep -o -E "gold\.png' alt='g'/> ?[0-9][0-9.,']{0,14}[KMBkmb]?" "$TMP/EFFSHOP" | sed -E "s@.*/> ?@@" | head -n1`
     _ouro=`valor_num "$_ouro"`
     case "$_ouro" in ''|*[!0-9]*) _ouro=0 ;; esac
+
     if [ "$_ouro" -lt "${FUNC_blessing_gold_min:-100}" ]; then
         printf "Bencao: ouro insuficiente (%s)\n" "$_ouro"
         unset _cl _ouro
@@ -78,23 +79,50 @@ use_blessing() {
 }
 
 clan_money() {
-    [ -n "$CLD" ] || clan_id
-    if [ -n "$CLD" ]; then
-        printf "Clan money ...\n"
+    [ "${FUNC_clan_money:-y}" = "y" ] || return 0
 
-        # Acessa a pagina principal do cla para extrair a chave r=
-        fetch_page "/clan/${CLD}/"
+    [ -n "$CLD" ] || clan_id 2>/dev/null
+    [ -n "$CLD" ] || return 0
 
-        _code=`grep -o -E '[?]r=[0-9]+' "$TMP/SRC" | head -n 1 | cut -d= -f2`
+    # Controle proprio do Clan Money, separado por conta.
+    # O marcador fica dentro de $TMP, que ja e exclusivo de cada conta.
+    _cm_agora=`date +%s`
+    _cm_ultimo=`cat "$TMP/last_clan_money" 2>/dev/null`
 
-        if [ -n "$_code" ]; then
-            printf "/clan/%s/money/?r=%s&silver=1000&gold=0&confirm=true&type=limit\n" "$CLD" "$_code"
-            fetch_page "/clan/${CLD}/money/?r=${_code}&silver=1000&gold=0&confirm=true&type=limit"
-            fetch_page "/clan/${CLD}/money/?r=${_code}&silver=1000&gold=0&confirm=true&type=limit"
-            printf "Clan money ok\n"
-        else
-            printf "Clan money: falha ao obter chave r=\n"
-        fi
-        unset _code
+    case "$_cm_ultimo" in
+        ''|*[!0-9]*) _cm_ultimo=0 ;;
+    esac
+
+    # Mantem o intervalo de 120 minutos usado pelo fluxo antigo.
+    if [ $((_cm_agora - _cm_ultimo)) -lt 7200 ]; then
+        unset _cm_agora _cm_ultimo
+        return 0
     fi
+
+    printf "Clan money ...\n"
+
+    # Acessa a pagina principal do cla para extrair a chave r=
+    fetch_page "/clan/${CLD}/"
+
+    _code=`grep -o -E '[?]r=[0-9]+' "$TMP/SRC" | head -n 1 | cut -d= -f2`
+
+    if [ -n "$_code" ]; then
+        _cm_url="/clan/${CLD}/money/?r=${_code}&silver=1000&gold=0&confirm=true&type=limit"
+
+        printf '%s\n' "$_cm_url"
+
+        # Uma unica chamada: evita doar duas vezes na mesma execucao.
+        fetch_page "$_cm_url"
+
+        # Marca somente depois da chamada ter sido realizada.
+        printf '%s' "$_cm_agora" > "$TMP/last_clan_money" 2>/dev/null
+
+        printf "Clan money ok\n"
+
+        unset _cm_url
+    else
+        printf "Clan money: falha ao obter chave r=\n"
+    fi
+
+    unset _code _cm_agora _cm_ultimo
 }

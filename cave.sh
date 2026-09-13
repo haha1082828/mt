@@ -119,8 +119,12 @@ cave_start() {
     set_cave_limits
 
     while echo "$RUN" | grep -q -E '[-]cv'; do
-        # CAPTURA INTELIGENTE: Pega o link inteiro independentemente do que vier depois na URL
-        CAVE=`grep -o -E '/cave/(gather|down|speedUp|attack|runaway)[^"'\'' >]*' "$TMP/SRC" | sed -n '1p'`
+        # Prioriza o link de aceleracao se estiver visivel na pagina
+        if grep -q '/cave/speedUp' "$TMP/SRC"; then
+            CAVE=`grep -o -E '/cave/speedUp[^"'\'' >]*' "$TMP/SRC" | sed -n '1p'`
+        else
+            CAVE=`grep -o -E '/cave/(gather|down|attack|runaway)[^"'\'' >]*' "$TMP/SRC" | sed -n '1p'`
+        fi
         RESULT=`echo "$CAVE" | cut -d'/' -f3`
 
         if [ -z "$CAVE" ]; then
@@ -214,8 +218,12 @@ cave_routine() {
     fetch_page "/cave/"
 
     while [ "$(date +%s)" -lt "$CAVE_BREAK" ]; do
-        # CAPTURA INTELIGENTE: Blindado contra mudancas na URL
-        CAVE=`grep -o -E '/cave/(gather|down|runaway|speedUp)[^"'\'' >]*' "$TMP/SRC" | sed -n '1p'`
+        # Prioriza o link de aceleracao se estiver visivel na pagina
+        if grep -q '/cave/speedUp' "$TMP/SRC"; then
+            CAVE=`grep -o -E '/cave/speedUp[^"'\'' >]*' "$TMP/SRC" | sed -n '1p'`
+        else
+            CAVE=`grep -o -E '/cave/(gather|down|runaway)[^"'\'' >]*' "$TMP/SRC" | sed -n '1p'`
+        fi
         RESULT=`echo "$CAVE" | cut -d'/' -f3`
 
         if [ -z "$CAVE" ]; then

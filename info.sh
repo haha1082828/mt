@@ -33,63 +33,18 @@ script_slogan() {
 }
 
 # Aguarda o ultimo job em background terminar, ate N segundos.
-#
-# CORRECAO: a versao original rodava dentro de ( ... ) e extraia o PID com
-#   TEFPID=`echo "$!" | grep -o -E '([0-9]{2,6})'`
-# A regex trunca PIDs com 7+ digitos (pid_max pode chegar a 4194304), o que
-# fazia o kill acertar um processo QUALQUER do usuario. Agora usa $! direto.
-# O "sleep antes do teste" foi mantido de proposito: ele impoe ~1s de
-# espacamento entre requisicoes, que e um limitador de taxa natural.
 time_exit() {
     TEFPID=$!
     [ -z "$TEFPID" ] && return 0
 
-    # Espacamento deliberado entre requisicoes: limitador de taxa natural,
-    # herdado da versao original (que o obtinha do primeiro "sleep 1" do
-    # laco de espera).
-    #
-    # CORRECAO: este "sleep" ignorava o TWM_PACING, a chave que o play.sh ja
-    # liga sozinho no Termux acima de 3 contas justamente para nao deixar um
-    # processo parado por requisicao. O fetch_page a respeitava; o time_exit,
-    # nao — e e ele que serve TODO o codigo de batalha, que e onde o pico de
-    # processos acontece. Com 6 contas em evento eram 6 "sleep" parados que a
-    # configuracao mandava nao existir.
-    #
-    # Com TWM_PACING=0 quem espaca as requisicoes e o proprio tempo de ida e
-    # volta ao servidor (meio segundo a dois), como o comentario do fetch_page
-    # ja documentava. Fora do Termux o padrao continua 1.
     _te_pace="${TWM_PACING:-1}"
     case "$_te_pace" in ''|*[!0-9]*) _te_pace=1 ;; esac
     [ "$_te_pace" -gt 0 ] && sleep "$_te_pace"
     unset _te_pace
 
-    # CORRECAO CRITICA (SIGKILL / "signal 9" no Android 12+):
-    #
-    # A versao anterior esperava com
-    #     while [ n -lt 17 ]; do sleep 1; kill -0 PID; done
-    # ou seja ate 17 forks de /bin/sleep POR REQUISICAO, mais o subshell e
-    # o curl. Cada conta faz dezenas de requisicoes por ciclo; com 6 contas
-    # em paralelo a arvore de processos do Termux passa facilmente dos 32
-    # processos "fantasma" que o Android 12+ tolera — e o sistema responde
-    # matando a sessao inteira com SIGKILL, sem aviso. E exatamente o
-    # "[Process completed (signal 9)]" que aparece no meio do lancamento.
-    #
-    # O prazo agora e imposto pelo proprio curl (--max-time, em run_curl),
-    # entao o processo em segundo plano TEM hora marcada para morrer e
-    # basta um "wait" — que nao cria processo nenhum.
-    #
-    # O argumento continua sendo aceito por compatibilidade com os 100+
-    # pontos de chamada, mas quem corta agora e o curl. Nos pontos que
-    # chamam run_curl direto o prazo passa de 17s para os 45s padrao do
-    # run_curl; o --connect-timeout de 15s ja cobre o caso comum (servidor
-    # fora do ar) e o valor maior foi mantido de proposito para nao
-    # apertar o login, que e a parte mais fragil do fluxo. Quem precisar
-    # de prazo curto define TWM_MAXTIME antes da chamada, como o
-    # fetch_page faz.
     wait "$TEFPID" 2>/dev/null
     _te_rc=$?
 
-    # 28 = CURLE_OPERATION_TIMEDOUT.
     if [ "$_te_rc" = "28" ]; then
         printf "timeout: requisicao abortada\n" >> "${TMP:-.}/ERROR_DEBUG"
         unset _te_rc
@@ -99,38 +54,6 @@ time_exit() {
     return 0
 }
 
-# Funcao central de requisicao via curl.
-#
-# CORRECOES:
-#  --proto/--proto-redir : impede que um redirect leve a requisicao (e o
-#                          corpo do POST de login) para fora de HTTPS.
-#  --max-redirs          : limita cadeia de redirecionamento.
-#  --connect-timeout /
-#  --max-time            : sem isso, um socket pendurado travava o worker
-#                          para sempre (as chamadas de login sao sincronas).
-#                          O valor agora sai de $TWM_MAXTIME (45s por
-#                          padrao): antes era fixo e o corte real de 17s
-#                          vinha do laco de "sleep 1" do time_exit. Quem
-#                          impoe o prazo passa a ser o curl; o time_exit so
-#                          espera, sem gastar processo.
-#  -sS em vez de -s      : mantem silencio de progresso MAS mostra erros,
-#                          que antes eram engolidos ("parou e nao sei por que").
-#
-# Registra em $TMP/pagina o caminho da requisicao que esta saindo.
-#
-# CORRECAO (painel "ATIVIDADE EM CONJUNTO" congelado): esse registro ficava
-# dentro do fetch_page, com o comentario "como todo acesso passa por aqui,
-# basta uma linha para cobrir o jogo inteiro". Nao passa. allies.sh,
-# altars.sh, arena.sh, clancoliseum.sh, clandmg.sh, clanfight.sh,
-# coliseum.sh, flagfight.sh, king.sh, loginlogoff.sh e undying.sh — ou seja
-# TODO o codigo de batalha, mais de 100 pontos de chamada — usam run_curl
-# direto e nunca tocavam nesse arquivo.
-#
-# Como o unico fetch_page do fim do ciclo e o descansar(), que volta para
-# "/", o painel lia "/" e mostrava "Pagina Principal" praticamente o tempo
-# todo, sem nunca acompanhar a batalha em andamento. Registrando aqui, no
-# unico ponto por onde TODA requisicao passa de verdade, a coluna passa a
-# seguir a conta ao vivo.
 _rc_track() {
     [ -n "$TMP" ] || return 0
     [ -n "$URL" ] || return 0
@@ -194,38 +117,10 @@ _rc_run() {
     fi
 }
 
-# Uso normal: roda o curl como filho e devolve a saida.
 run_curl() { _rc_run "" "$@"; }
 
-# Uso em segundo plano: SUBSTITUI o processo pelo curl, em vez de deixar um
-# shell parado esperando por ele.
-#
-# CORRECAO (SIGKILL / "signal 9"): "run_curl ... &" forka um shell que so
-# serve para lancar o curl e esperar — dois processos onde um basta. Com o
-# exec o filho VIRA o curl (comprovado: sem exec ficam dash+sleep, com exec
-# fica so o sleep).
-#
-# Isso importa porque o Android 12+ mata a sessao inteira acima de 32
-# processos filhos, e a conta estava justamente no limite:
-#     13 persistentes (play.sh + 6 worker.sh + 6 twm.sh)
-#   + 6 x 3 por requisicao (subshell + curl + sleep)  = 31
-# Qualquer grep de parsing que nascesse junto estourava. Sem o subshell:
-#     13 + 6 x 2 = 25, com folga para os processos transitorios.
 run_curl_exec() { _rc_run "exec" "$@"; }
 
-# Acessa qualquer pagina pelo caminho relativo.
-#
-# CORRECAO (SIGKILL / "signal 9"): a espera era feita com time_exit, que
-# sondava com "sleep 1" — subshell + curl + ate 17 forks de sleep, ou seja
-# ate 19 processos POR PAGINA. Com 6 contas e dezenas de paginas por ciclo,
-# o limite de processos "fantasma" do Android 12+ era estourado e a sessao
-# do Termux inteira morria com SIGKILL.
-#
-# Agora sao 3 processos fixos por pagina (subshell + curl + o sleep de
-# espacamento) e o prazo e imposto pelo proprio curl. Medido em 10 paginas
-# contra um servidor de 2,5s: 30 forks de sleep antes, 10 depois, no mesmo
-# tempo total. De quebra o codigo passa a saber POR QUE a requisicao
-# falhou, em vez de so "acabou o tempo".
 fetch_page() {
     relative_url="$1"
     output_file="${2:-$TMP/SRC}"
@@ -235,31 +130,15 @@ fetch_page() {
     _fp_pid=$!
     unset TWM_MAXTIME
 
-    # ESPACAMENTO ENTRE REQUISICOES
-    #
-    # O "sleep 1" fica EM PARALELO com a requisicao, nao depois dela.
-    #
-    # E o mesmo espacamento minimo de 1s por requisicao que a versao
-    # anterior tinha — nela a primeira volta do laco de espera corria
-    # junto com o curl. Colocado depois do curl, ele viraria 1s de atraso
-    # somado a CADA pagina: com ~90 paginas por ciclo, mais de um minuto
-    # perdido por conta, por ciclo. Medido: 10 paginas em 30s (em paralelo)
-    # contra 35s (em serie).
-    # TWM_PACING=0 dispensa esse processo: o proprio tempo de ida e volta
-    # da requisicao (meio segundo a dois no servidor do jogo) ja espaca as
-    # chamadas. Vale no Android 12, onde CADA processo conta para o limite
-    # de 32 — sao 6 "sleep" parados, um por conta, so para esperar.
-    # O play.sh liga isso sozinho quando detecta que o limite aperta.
     _fp_pace="${TWM_PACING:-1}"
     case "$_fp_pace" in ''|*[!0-9]*) _fp_pace=1 ;; esac
     [ "$_fp_pace" -gt 0 ] && sleep "$_fp_pace"
 
-        wait "$_fp_pid" 2>/dev/null
+    wait "$_fp_pid" 2>/dev/null
     _fp_rc=$?
     unset _fp_pid _fp_pace
 
     if [ "$_fp_rc" != "0" ]; then
-        # Tenta mais uma vez de forma imediata se a requisição de combate/página falhar
         run_curl_exec "${URL}${relative_url}" > "$output_file" 2>/dev/null
         _fp_rc=$?
         if [ "$_fp_rc" != "0" ]; then
@@ -272,58 +151,19 @@ fetch_page() {
     return 0
 }
 
-# ============================================================
-#  LEITURA DA PAGINA DE COMBATE — UMA PASSADA SO
-#
-#  Os modulos de batalha liam o MESMO arquivo 23 vezes por chamada: sete
-#  grep, nove sed, dois awk e cinco "$(cat ...)" em substituicao de comando.
-#  Como a leitura roda duas ou tres vezes por volta do laco, davam 50 a 70
-#  processos por volta, POR CONTA.
-#
-#  Isso importa no Android 12, onde a sessao inteira e morta acima de 32
-#  processos filhos. O pico acontece justamente no evento, quando todas as
-#  contas entram no mesmo minuto:
-#
-#      1 play.sh + 6 workers                       =  7 permanentes
-#      6 x (subshell->curl + sleep do time_exit)   = 12
-#      6 x ~2 transitorios de parsing              = 12
-#                                                    ----
-#                                                     31
-#
-#  Um grep a mais estoura. Aqui um unico awk le a pagina uma vez e grava os
-#  mesmos arquivos, com as mesmas expressoes: 23 processos viram 1.
-#
-#  Uso:  combate_ler SECAO HPER RPER ARQUIVO
-#  Saida: imprime "1" se a pagina ainda e de luta, "0" se acabou.
-#  Grava: ATK ATKRND DODGE HEAL STONE KINGATK GRASS HP HP2 RHP HLHP
-#         no diretorio corrente, como antes.
 combate_ler() {
     awk -v sec="$1" -v hper="$2" -v rper="$3" '
         function grava(nome, valor) {
-            # Mesma saida do "grep | sed > ARQUIVO": vazio quando nao ha
-            # match, com quebra de linha no fim quando ha. O "[ -s ARQUIVO ]"
-            # dos modulos distingue os dois casos.
             if (valor == "") printf "" > nome
             else             printf "%s\n", valor > nome
             close(nome)
         }
-        # RHP e HLHP saiam de "awk BEGIN{printf} > ARQUIVO", ou seja SEM
-        # quebra de linha. Manter a diferenca evita mudar o que os modulos
-        # que leem esses arquivos ja veem.
         function grava_num(nome, valor) {
             printf "%s", valor > nome
             close(nome)
         }
         { todo = todo $0 " " }
         END {
-            # NADA DE {n,m} AQUI.
-            #
-            # O mawk (o awk do Debian/WSL) aceita intervalos mas nao volta
-            # atras: em "/king/at[a-z]{0,3}k[a-z]{3,6}/" ele casa "ran" e
-            # desiste em vez de tentar "random" e chegar na barra. Medido —
-            # a extracao do ataque aleatorio vinha vazia. Por isso os links
-            # sao pegos com uma expressao simples e o VERBO e classificado
-            # por comparacao de texto, que funciona em qualquer awk.
             resto = todo
             while (match(resto, "/" sec "/[a-z]+/[?]r[=][0-9]+")) {
                 link = substr(resto, RSTART, RLENGTH)
@@ -342,7 +182,6 @@ combate_ler() {
                 else if (verbo == "grass")   alvo = "GRASS"
                 else if (verbo ~ /^at.*k./)  alvo = "ATKRND"
 
-                # Primeira ocorrencia vence, como o "sed -n 1p" fazia.
                 if (alvo != "" && !(alvo in achado)) achado[alvo] = link
             }
 
@@ -350,8 +189,6 @@ combate_ler() {
             for (i = 1; i <= n; i++)
                 grava(lista[i], (lista[i] in achado) ? achado[lista[i]] : "")
 
-            # HP do jogador e HP do alvo. "[^A-Za-z0-9_][^A-Za-z0-9_]*" no
-            # lugar de "{1,4}" pelo mesmo motivo: um ou mais separadores.
             hp = ""
             if (match(todo, "hp[^A-Za-z0-9_][^A-Za-z0-9_]*[0-9][0-9]*")) {
                 hp = substr(todo, RSTART, RLENGTH)
@@ -366,7 +203,6 @@ combate_ler() {
             }
             grava("HP2", hp2)
 
-            # Os dois limiares saiam de um awk cada, lendo arquivo com cat.
             full = ""
             getline full < "FULL"; close("FULL")
             rhp  = sprintf("%.0f", hp * rper / 100 + hp)
@@ -374,9 +210,6 @@ combate_ler() {
             grava_num("RHP",  rhp)
             grava_num("HLHP", hlhp)
 
-            # Os mesmos valores tambem saem na saida padrao, para quem os usa
-            # como VARIAVEL (o king.sh) nao precisar de um "cat" por campo.
-            # Campo vazio vira 0: sem isso a divisao em posicionais desalinha.
             printf "%s %s %s %s %s\n", \
                    (todo ~ /\/dodge\//) ? "1" : "0", \
                    (rhp  == "") ? "0" : rhp, \
@@ -387,45 +220,12 @@ combate_ler() {
     ' "$4" 2>/dev/null
 }
 
-# A sessao esta viva: carimba a hora da ultima confirmacao.
-#
-# POR QUE ISTO EXISTE
-#
-# Quem escrevia o last_ok era so o descansar(), no fim de cada ciclo. Dentro
-# de um evento o ciclo nao termina: o modulo entra em 15:55, espera ate as
-# 16:00 num laco de sleep e so entao luta, com teto de 600s. Sao dez, quinze
-# minutos sem passar pelo descanso — e o painel, que cobra confirmacao a
-# cada 4 minutos, anunciava "sessao caida" em praticamente todo evento, com
-# a conta lutando normalmente.
-#
-# Nao da para chamar o descansar ali: ele volta para a Home e ABANDONARIA a
-# batalha. Mas a confirmacao ja existe de graca dentro da luta: a pagina de
-# combate so responde com o link de golpe para quem esta logado. Onde o
-# modulo reconhece esse link, a sessao esta provada — e e so carimbar.
 sessao_marcar() { date +%s > "$TMP/last_ok" 2>/dev/null; }
 
-# Primeiro link de ACAO de um evento, preferindo o que tem nonce (?r=N).
-#
-# CORRECAO (conta abandonando o evento): os modulos extraiam o link com uma
-# alternacao do tipo
-#     /altars(/[A-Za-z]+/?r=[0-9]+|/)
-# cujo segundo ramo casa o caminho NU "/altars/". Como "/altars/" aparece em
-# qualquer link da pagina e o "sed -n 1p" pega a primeira ocorrencia, o
-# ACCESS virava quase sempre o caminho nu — nunca o link de dodge/ataque.
-#
-# O laco de entrada espera justamente por "dodge" nesse arquivo, entao ele
-# nunca era satisfeito: a conta queimava o tempo limite, entrava no laco de
-# luta sem estar na luta, via "Battle over" na primeira volta e voltava para
-# a rotina comum. No painel isso aparece como a conta trocando o evento por
-# "Cla" no meio do horario — abandonando o evento.
-#
-# Aqui o link com nonce tem prioridade; o caminho nu so e devolvido quando
-# nao existe nenhuma acao disponivel, que e a informacao verdadeira.
 link_acao() {
     _la_f="$1"; _la_p="$2"
     [ -r "$_la_f" ] || { printf ''; unset _la_f _la_p; return 1; }
     _la=`grep -o -E "/${_la_p}/[A-Za-z]+/[^A-Za-z0-9]r[^A-Za-z0-9][0-9]+" "$_la_f" 2>/dev/null | sed -n 1p`
-    # Link com nonce so aparece em pagina logada: serve de confirmacao.
     [ -n "$_la" ] && sessao_marcar
     [ -n "$_la" ] || _la=`grep -o -E "/${_la_p}/" "$_la_f" 2>/dev/null | sed -n 1p`
     printf '%s' "$_la"
@@ -446,8 +246,6 @@ hpmp() {
     NOWHP=`grep -o -E "<img src='/images/icon/health.png' alt='hp'/> <span class='(dred|white)'>[ ]?[0-9]{1,7}[ ]?</span> | <img src='/images/icon/mana.png' alt='mp'/>" "$TMP/SRC" | tr -c -d '[:digit:]'`
     NOWMP=`grep -o -E "</span> | <img src='/images/icon/mana.png' alt='mp'/>[ ]?[0-9]{1,7}[ ]?</span><div class='clr'></div></div>" "$TMP/SRC" | tr -c -d '[:digit:]'`
 
-    # CORRECAO: se a requisicao foi cortada pelo time_exit, FIXHP/FIXMP ficam
-    # vazios e o awk fazia divisao por zero -> "nan"/"inf" nas comparacoes.
     if [ -n "$NOWHP" ] && [ -n "$FIXHP" ] && [ "$FIXHP" -gt 0 ] 2>/dev/null; then
         HPPER=`awk -v nowhp="$NOWHP" -v fixhp="$FIXHP" 'BEGIN { printf "%.2f", nowhp / fixhp * 100 }'`
     else
@@ -461,56 +259,14 @@ hpmp() {
     fi
 }
 
-# Extrai os dados da conta de uma pagina /user ja baixada e grava em
-# $TMP/stats, que o painel do play.sh le. Nenhuma requisicao extra: o
-# login_logoff() ja baixa essa pagina a cada ciclo.
-#
-# Campos nao encontrados viram "-" em vez de ficarem vazios, para o painel
-# nao mentir sobre um valor que nao conseguiu ler.
-#
-# Padroes confirmados contra o HTML real do jogo:
-#   <title>Grimlock</title>
-#   health.png' alt='hp'/> <span class='white'>65312</span>
-#   mana.png' alt='mp'/> 470</span>
-#   icon/level.png' alt=''/> 40 nivel
-#   mana.png' alt=''/> Energia: 2125
-
-# Extrai os dados da conta de uma pagina /user ja baixada e grava em
-# $TMP/stats, lido pelo painel do play.sh. Sem requisicao extra: o
-# login_logoff() ja baixa essa pagina a cada ciclo.
-#
-# Padroes confirmados contra o HTML real:
-#   <title>Grimlock</title>
-#   health.png' alt='hp'/> <span class='white'>65312</span>
-#   mana.png' alt='mp'/> 346
-#   icon/level.png' alt='lvl'/> 90
-#   icon/gold.png' alt='g'/> 396
-#   icon/silver.png' alt='s'/> 408,1M
-# Energia so aparece em /train: mana.png' alt=''/> Energia: 2125
 parse_status() {
     _pg="$1"
     [ -n "$_pg" ] || return 1
 
-    # DISTANCIA LIVRE ENTRE O ICONE E O NUMERO.
-    #
-    # CORRECAO (energia mostrando so o teto): entre o icone e o valor o jogo
-    # intercala tags e espacos —
-    #     <img src='/images/icon/mana.png' alt='mp'/> <span class='white'>809</span>
-    # e o seletor do MP exigia o numero a no maximo 4 caracteres do icone e
-    # PROIBIA "<" no meio. Qualquer <span> ali zerava a leitura. Com o ACC_MP
-    # vazio, o campo de energia caia no unico valor que restava — o teto, do
-    # /train —, e era esse que aparecia no painel. O do HP ja tolerava um
-    # <span>, e por isso o HP funcionava e a energia nao.
-    #
-    # Agora todos usam a mesma regra: ate 40 caracteres entre o marcador e o
-    # numero, contanto que nenhum deles seja digito. Como "[^0-9]" nao casa
-    # digito, o numero capturado e sempre o PRIMEIRO depois do icone — a
-    # folga nao deixa o seletor pular para um numero vizinho.
     ACC_HP=`printf '%s' "$_pg" | grep -o -E "health\.png' alt='hp'/>[^0-9]{0,40}[0-9]{1,9}" | grep -o -E '[0-9]{1,9}$' | head -n1`
     ACC_MP=`printf '%s' "$_pg" | grep -o -E "mana\.png' alt='mp'/>[^0-9]{0,40}[0-9]{1,9}" | grep -o -E '[0-9]{1,9}$' | head -n1`
     ACC_LVL=`printf '%s' "$_pg" | grep -o -E "level\.png' alt='[^']*'/>[^0-9]{0,40}[0-9]{1,4}" | grep -o -E '[0-9]{1,4}$' | head -n1`
 
-    # Ouro e prata: guarda o texto como o jogo mostra (pode vir "408,1M").
     ACC_GOLD=`printf '%s' "$_pg" | grep -o -E "gold\.png' alt='g'/>[^0-9]{0,40}[0-9][0-9.,']{0,14}[KMBkmb]?" | grep -o -E "[0-9][0-9.,']{0,14}[KMBkmb]?$" | head -n1`
     ACC_SILVER=`printf '%s' "$_pg" | grep -o -E "silver\.png' alt='s'/>[^0-9]{0,40}[0-9][0-9.,']{0,14}[KMBkmb]?" | grep -o -E "[0-9][0-9.,']{0,14}[KMBkmb]?$" | head -n1`
 
@@ -522,24 +278,6 @@ parse_status() {
         HPPER=""
     fi
 
-    # ENERGIA: ATUAL / TETO.
-    #
-    # CORRECAO (o painel mostrava sempre o teto). Havia dois numeros e o bot
-    # exibia o errado:
-    #
-    #   ACC_ENE  vem de /train  ("Energia: 2109")  -> e o TETO, praticamente
-    #                                                 fixo para a conta
-    #   ACC_MP   vem do cabecalho da pagina        -> e o valor que MUDA:
-    #            (mana.png alt='mp')                  cai quando a arena gasta
-    #                                                 e sobe com a regeneracao
-    #
-    # O campo de energia do painel recebia o ACC_ENE, e o ACC_MP era lido e
-    # descartado — o painel nem chegava a exibi-lo. Resultado: uma conta com
-    # 231 de energia aparecia com 2109, que e o teto dela.
-    #
-    # Agora o campo traz os dois, no formato "atual/teto" (ex.: 809/2109),
-    # que e como o proprio jogo apresenta. Quando so um dos dois e conhecido,
-    # mostra o que houver, sem inventar o outro.
     _ene_campo="-"
     if [ -n "$ACC_MP" ] && [ -n "$ACC_ENE" ]; then
         _ene_campo="${ACC_MP}/${ACC_ENE}"
@@ -558,48 +296,18 @@ parse_status() {
     unset _pg
 }
 
-# Dados que so existem na pagina /train: HP maximo e energia.
-# Uma requisicao por ciclo de start(), nao por minuto.
 fetch_train_stats() {
-    # ENERGIA ZERADA ANTES DE LER.
-    #
-    # CORRECAO (painel mostrando energia de horas atras): quando o /train nao
-    # respondia — rede oscilando, timeout, sessao caida — a funcao devolvia 1
-    # no "[ -n "$_t" ] || return 1" abaixo e o ACC_ENE CONTINUAVA com o valor
-    # da ultima leitura boa. Como o worker e um unico processo que vive por
-    # dias, essa variavel ficava presa: uma conta com 231 de energia aparecia
-    # no painel com 2115, o valor lido no boot, indefinidamente.
-    #
-    # Zerando aqui, uma leitura que falha resulta em "-" no painel — que e
-    # honesto (nao sabemos) em vez de errado (numero congelado). O aviso de
-    # "numeros parados" do painel cobre o resto.
-    #
-    # O FIXHP recebe tratamento diferente de proposito: ele e o HP MAXIMO, que
-    # so muda quando a conta sobe de nivel. O ultimo valor conhecido continua
-    # valido, entao mante-lo nao mente — e evita perder o percentual de HP a
-    # cada oscilacao de rede. Os dois usos dele ja sao protegidos por
-    # [ -n "$FIXHP" ].
     ACC_ENE=""
 
     _t=`run_curl "${URL}/train" 2>/dev/null`
     [ -n "$_t" ] || return 1
     FIXHP=`printf '%s' "$_t" | grep -o -E '\([0-9]{1,9}\)' | head -n1 | tr -d '()'`
-    # CORRECAO (energia sempre vazia): o sed era `s@.*:? ?@@`. Como `:?` e ` ?`
-    # sao ambos opcionais, o `.*` guloso casava a string INTEIRA ("Energia:
-    # 2125") e a substituicao apagava tudo, devolvendo vazio. Sobrava so o
-    # fallback abaixo, que ainda perde o sufixo K/M ("2,1M" virava "2,1").
-    # Agora a remocao e ancorada no proprio rotulo, preservando o numero e o
-    # sufixo.
-    # Mesma regra do parse_status: o rotulo e o numero quase nunca estao
-    # colados no HTML cru — entre eles vem "</span> <span class='white'>".
     ACC_ENE=`printf '%s' "$_t" | grep -o -E "Energia:?[^0-9]{0,40}[0-9][0-9.,']{0,14}[KMBkmb]?" | grep -o -E "[0-9][0-9.,']{0,14}[KMBkmb]?$" | head -n1`
     unset _t
 }
 
-# Compatibilidade: nome antigo usado pelo twm.sh
 fetch_max_hp() { fetch_train_stats; }
 
-# Linha de status no log da conta. Imprime so o que existe.
 messages_info() {
     _a="${ACC:-$TWM_USER}"
     printf "TWM v%s | %s\n" "${versionNum:-?}" "$_a" > "$TMP/msg_file"
@@ -620,33 +328,6 @@ player_stats() {
     echo "$PLAYER_STRENGTH"
 }
 
-# Le a agenda oficial do jogo em /fights/ e grava em ~/.twm/agenda.
-#
-# CORRECAO (a agenda oficial nunca era lida): este parser procurava
-# "Para iniciar: HH:MM:SS" e convertia a contagem regressiva para horario
-# absoluto. Esse texto NAO existe na pagina. O /fights/ real ("Cronograma de
-# batalhas") lista, sob cada evento, o HORARIO ABSOLUTO seguido de uma
-# descricao livre:
-#
-#   Vale dos Imortais
-#   10:00 BRT - Tempo para o inicio 1 hora
-#   16:00 BRT - Tempo para o inicio 7 horas
-#   Coliseu do cla
-#   10:30 BRT - Nova temporada comeca em 7 de Setembro
-#
-# Como nada casava, o arquivo saia vazio e o painel caia sempre na lista
-# fixa. A lista fixa esta correta, entao o defeito era silencioso — mas a
-# agenda do jogo nunca era de fato consultada, e uma mudanca de horario
-# passaria despercebida.
-#
-# Agora le o horario absoluto direto. Alem de ser o que a pagina mostra,
-# dispensa toda a aritmetica de contagem regressiva (e o `date -d` do GNU,
-# que o toybox do Android nao tem). A descricao apos o "-" e ignorada de
-# proposito: varia com o estado do evento ("Tempo para o inicio", "Nova
-# temporada comeca em...") e nao interessa para a agenda.
-#
-# Escreve uma linha por evento: HHMM|Nome
-# Uma requisicao por ciclo de start(), e o painel apenas le o arquivo.
 atualiza_agenda() {
     _ag="$HOME/.twm/agenda"
 
@@ -655,29 +336,15 @@ atualiza_agenda() {
     unset TWM_MAXTIME
     [ -n "$_pg" ] || return 1
 
-    # CORRECAO 1 (corrida entre as contas): o arquivo temporario era
-    # "$_ag.tmp" — o MESMO para as 6 contas, porque a agenda mora em
-    # ~/.twm e nao no diretorio da conta. Os workers escreviam nele ao
-    # mesmo tempo e o "mv" de um publicava o arquivo pela metade do outro.
-    # Agora o temporario leva o PID.
     _tmpf="${_ag}.$$.tmp"
     _rawf="${_ag}.$$.raw"
     : > "$_tmpf"
 
-    # Nome do evento OU um horario absoluto "HH:MM BRT". O nome do fuso e
-    # aceito de forma generica (BRT/BRST/qualquer sigla) para o parser nao
-    # quebrar no horario de verao.
     printf '%s' "$_pg" \
         | sed 's/<br[^>]*>/\n/g; s/<\/div>/\n/g; s/<[^>]*>//g' \
         | grep -oE "(Vale dos Imortais|Coliseu do clã|Torneio dos Clãs|Rei dos Imortais|Altares dos Deuses|Batalha de Bandeiras)|[0-9]{1,2}:[0-9]{2} [A-Z]{2,5}" \
         > "$_rawf" 2>/dev/null
 
-    # Um evento tem VARIOS horarios (o Vale tem tres), entao o nome vale ate
-    # aparecer o proximo nome — nao e limpo a cada horario, como fazia a
-    # versao de pares nome+contador. Horario sem nome antes e descartado.
-    #
-    # Le de ARQUIVO, nao de pipe: num pipe o laco roda em subshell e o
-    # "$_nome" guardado de uma volta para a outra se perderia.
     _nome=""
     while IFS= read -r _ln; do
         case "$_ln" in
@@ -686,12 +353,6 @@ atualiza_agenda() {
                 _h=${_ln%%:*}
                 _m=${_ln#*:}; _m=${_m%% *}
                 case "$_h$_m" in *[!0-9]*) continue ;; esac
-                # Zeros a esquerda removidos na mao: "$((10#$_h))" e um
-                # bashism — o dash recusa com "arithmetic expression" e o
-                # toybox do Android tambem, o que zeraria a agenda inteira no
-                # aparelho (mesma armadilha do `date -d` que ja quebrou este
-                # parser antes). Sem isto, "08" ainda seria lido como octal
-                # por varias implementacoes de printf.
                 while :; do case "$_h" in 0?*) _h=${_h#0} ;; *) break ;; esac; done
                 while :; do case "$_m" in 0?*) _m=${_m#0} ;; *) break ;; esac; done
                 printf '%02d%02d|%s\n' "$_h" "$_m" "$_nome" >> "$_tmpf"
@@ -703,11 +364,6 @@ atualiza_agenda() {
     done < "$_rawf"
     rm -f "$_rawf"
 
-    # CORRECAO 4 (ordem): o proximo_evento do play.sh percorre a lista de
-    # cima para baixo e para no primeiro horario MAIOR que agora — ele
-    # espera uma agenda diaria ordenada, como a lista fixa. A pagina
-    # /fights/ nao vem em ordem cronologica, entao o painel apontava um
-    # evento qualquer. Ordena antes de publicar.
     if [ -s "$_tmpf" ]; then
         sort -n "$_tmpf" > "${_tmpf}.s" 2>/dev/null && mv "${_tmpf}.s" "$_tmpf"
         mv "$_tmpf" "$_ag"
@@ -717,8 +373,6 @@ atualiza_agenda() {
     unset _ag _pg _tmpf _rawf _nome _ln _h _m
 }
 
-# Converte "408,7M" / "12K" / "1.234" em numero inteiro.
-# O jogo abrevia valores grandes; sem isto "408,7M" viraria 4087.
 valor_num() {
     _v=`printf '%s' "$1" | tr -d ' '`
     case "$_v" in
@@ -731,4 +385,131 @@ valor_num() {
     [ -z "$_dg" ] && { echo 0; return; }
     awk -v d="$_dg" -v m="$_mu" 'BEGIN{ printf "%.0f", d*m }'
     unset _v _mu _dg
+}
+
+# ============================================================
+#  NOVAS FUNCOES DE TAREFAS LIVRES E CHECKLIST INTEGRADAS
+# ============================================================
+
+check_info() {
+    fetch_page "/user/info" "$TMP/USER_INFO" 2>/dev/null
+    [ -s "$TMP/USER_INFO" ] || fetch_page "/main" "$TMP/USER_INFO"
+
+    NOWHP=`grep -o -E 'hp[^0-9]*[0-9]+' "$TMP/USER_INFO" | grep -o -E '[0-9]+' | head -n1`
+    NOWMP=`grep -o -E 'mp[^0-9]*[0-9]+' "$TMP/USER_INFO" | grep -o -E '[0-9]+' | head -n1`
+
+    NOWHP=${NOWHP:-100}
+    NOWMP=${NOWMP:-100}
+
+    if [ -z "$CLD" ]; then
+        clan_id 2>/dev/null
+    fi
+}
+
+cq_liberado() {
+    _ult_cq=`cat "$TMP/last_cq" 2>/dev/null`
+    _hoje_cq=`date +%Y%m%d`
+    if [ "$_ult_cq" = "$_hoje_cq" ]; then
+        unset _ult_cq _hoje_cq
+        return 1
+    fi
+    unset _ult_cq _hoje_cq
+    return 0
+}
+
+cq_marcar() {
+    date +%Y%m%d > "$TMP/last_cq" 2>/dev/null
+}
+
+cq_concluir() {
+    fetch_page "/clan/${CLD}/quests" "$TMP/CLAN_QUESTS"
+    _link=`grep -o -E '/clan/[0-9]+/quests/claim/[0-9]+/[?]r=[0-9]+' "$TMP/CLAN_QUESTS" | head -n1`
+    if [ -n "$_link" ]; then
+        fetch_page "$_link"
+    fi
+    unset _link
+}
+
+cq_ajudar() {
+    fetch_page "/clan/${CLD}/quests" "$TMP/CLAN_QUESTS"
+    _link=`grep -o -E '/clan/[0-9]+/quests/help/[0-9]+/[?]r=[0-9]+' "$TMP/CLAN_QUESTS" | head -n1`
+    if [ -n "$_link" ]; then
+        fetch_page "$_link"
+    fi
+    unset _link
+}
+
+cq_forcar_ouro() {
+    fetch_page "/clan/${CLD}/quests" "$TMP/CLAN_QUESTS"
+    _link=`grep -o -E '/clan/[0-9]+/quests/gold/[0-9]+/[?]r=[0-9]+' "$TMP/CLAN_QUESTS" | head -n1`
+    if [ -n "$_link" ]; then
+        fetch_page "$_link"
+    fi
+    unset _link
+}
+
+cq_elixir() {
+    fetch_page "/clan/${CLD}/quests" "$TMP/CLAN_QUESTS"
+    _link=`grep -o -E '/clan/[0-9]+/quests/elixir/[0-9]+/[?]r=[0-9]+' "$TMP/CLAN_QUESTS" | head -n1`
+    if [ -n "$_link" ]; then
+        fetch_page "$_link"
+    fi
+    unset _link
+}
+
+cq_mercador() {
+    fetch_page "/clan/${CLD}/quests" "$TMP/CLAN_QUESTS"
+    _link=`grep -o -E '/clan/[0-9]+/quests/merchant/[0-9]+/[?]r=[0-9]+' "$TMP/CLAN_QUESTS" | head -n1`
+    if [ -n "$_link" ]; then
+        fetch_page "$_link"
+    fi
+    unset _link
+}
+
+sellAll() {
+    [ "${FUNC_sellAll:-y}" = "y" ] || return 0
+    fetch_page "/inventory/sellAll" 2>/dev/null
+}
+
+tarefas_livres() {
+    [ "${FUNC_tarefas_livres:-y}" = "y" ] || return 0
+
+    # 1. Atualiza dados basicos da conta
+    check_info 2>/dev/null
+
+    # 2. Troca diaria de prata por ouro (trade.sh)
+    func_trade 2>/dev/null
+
+    # 3. Compra de bencao na loja de efeitos (trade.sh)
+    use_blessing 2>/dev/null
+
+    # 4. Checklist do cla e Doacao de Prata (clan_money)
+    if [ -n "$CLD" ]; then
+        if cq_liberado; then
+            printf "Checklist do cla\n"
+            cq_concluir    2>/dev/null
+            cq_ajudar      2>/dev/null
+            cq_forcar_ouro 2>/dev/null
+            cq_elixir      2>/dev/null
+            cq_mercador    2>/dev/null
+            clan_money     2>/dev/null
+            cq_marcar
+        else
+            if ativ_liberada "clan_money" 120 2>/dev/null; then
+                clan_money 2>/dev/null
+                ativ_marcar "clan_money" 2>/dev/null
+            fi
+        fi
+    fi
+
+    # 5. Modulo de campanha
+    if ativ_liberada "campanha" 15 2>/dev/null; then
+        campaign_func 2>/dev/null
+        ativ_marcar "campanha" 2>/dev/null
+    fi
+
+    # 6. Limpeza e venda de itens da mochila
+    sellAll 2>/dev/null
+
+    return 0
 }

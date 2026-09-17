@@ -188,11 +188,15 @@ done
 clan_id 2>/dev/null
 func_proxy
 
-# Mantém exatamente o método original de chamada do fluxo de execuções da conta
+# Fluxo adaptado cirurgicamente para executar a economia no modo coliseu (-cl)
 twm_start() {
     case "$RUN" in
         *-cv*) cave_start ;;
-        *-cl*) arena_duel; coliseum_start ;;
+        *-cl*) 
+            arena_duel
+            coliseum_start
+            tarefas_livres
+            ;;
         *)     twm_play ;;
     esac
 }
@@ -200,7 +204,6 @@ twm_start() {
 [ -n "$TWM_STATUS_FILE" ] && echo "running" > "$TWM_STATUS_FILE"
 printf "[%s] %s — loop principal iniciado\n" "$TWM_TAG" "$ACC"
 
-# Executa o padrão original (chama twm_start ou loop de relógio nativo)
 while true; do
     if [ -f "$HOME/.twm/PAUSED" ] || [ -f "$TMP/PAUSED" ]; then
         [ -n "$TWM_STATUS_FILE" ] && echo "paused" > "$TWM_STATUS_FILE"

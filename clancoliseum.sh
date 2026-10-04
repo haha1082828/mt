@@ -4,7 +4,7 @@ clancoliseum_fight() {
   cd "$TMP" || return 1
 
   LA=4
-  HPER=40
+  HPER=25
   RPER=15
   
   rm -f "$full_ram"

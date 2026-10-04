@@ -1,7 +1,7 @@
 king_fight() {
   cd "$TMP" || return 1
   LA=4
-  HPER="38"
+  HPER="25"
   RPER=5
   rm -f FULL
 

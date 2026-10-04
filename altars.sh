@@ -2,7 +2,7 @@ altars_fight() {
   cd "$TMP" || return 1
   apply_event altars
   LA=4
-  echo "40" > HPER
+  echo "25" > HPER
   echo "15" > RPER
   rm -f FULL
 

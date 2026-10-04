@@ -5,7 +5,7 @@ coliseum_fight() {
     full_ram="$TMP/col_full"
 
     LA=4
-    HPER=38
+    HPER=25
     RPER=5
 
     printf "Coliseum\n"

@@ -2,30 +2,12 @@
 # trade.sh - Troca PRATA -> OURO, Bencao e Doacao de Cla
 #
 # REVISAO 2 (feita a partir da pagina REAL /trade/exchange).
-#
-# A pagina tem duas secoes:
-#   "Troca: Prata -> Ouro"  -> opcoes "Troca 518 -> 1", "Troca 5'180 -> 10",
-#                              "Troca 29'008 -> 56" (maximo liberado hoje)
-#   "Comprar Prata"         -> "Comprar 1184 para 1", "... para 100" (GASTA ouro)
-#
-# Regras de seguranca desta versao:
-#   1. So clica em link cujo texto tem a forma "X -> Y" (prata -> ouro).
-#      Qualquer texto com "Comprar"/"para"/"Buy" e ignorado.
-#   2. Nao clica se nao conseguir ler o ouro antes (nao ha como conferir).
-#   3. Depois de cada clique confere o resultado. Se o OURO CAIR, a troca
-#      se desliga sozinha (FUNC_trade=n no config.cfg da conta) e avisa.
-#   4. Escolhe sempre a MAIOR opcao que a prata paga e que o limite diario
-#      ("Ouro disponivel para troca: N de M") permite.
-#
-# Configuracao opcional (config.cfg da conta):
-#   FUNC_trade=y|n            liga/desliga a troca
-#   FUNC_trade_reserva=N      prata que NAO deve ser gasta na troca (padrao 0)
-#   FUNC_clan_money=y|n       liga/desliga a doacao ao cla
-#   FUNC_clan_money_silver=N  prata por doacao (padrao 100000)
-#
-# Marcadores (em $TMP): last_trade (AAAAMMDD), last_trade_try (epoch),
-# trade_fail (AAAAMMDD:N), last_clan_money (epoch). Diagnostico em
-# $TMP/trade_debug.log; paginas salvas: trade_page.html, trade_resp.html.
+
+# CORRECAO CRITICA (UBUNTU / MULTI-CONTAS):
+# Garante que $TMP esta definida. No Ubuntu VPS ela vem vazia,
+# o que fazia o script tentar gravar na raiz (ex: /TRADE_PAGE).
+: "${TMP:=${TWMDIR:-/tmp}/tmp}"
+mkdir -p "$TMP" 2>/dev/null
 
 # ---------------------------------------------------------------------------
 # Auxiliares (prefixo trd_ para nao colidir com nenhuma outra funcao)
@@ -120,12 +102,6 @@ trd_disp() {
 }
 
 # trd_opcoes <arquivo> <prata_disponivel> <max_ouro|0>
-# Lista as opcoes de TROCA da pagina. Saida:
-#   C|href|ouro|custo|paga(0/1)   uma linha por opcao encontrada
-#   S|href|ouro|custo             a escolhida (maior ouro que a prata paga)
-# Um link so vira opcao se seu texto tiver a forma "X -> Y" e NAO tiver
-# "Comprar"/"Buy"/"para". O texto e o do proprio link; se ele so tiver a
-# palavra "Troca", usa os ~25 caracteres logo depois dele.
 trd_opcoes() {
     tr '\n\r\t' '   ' < "$1" 2>/dev/null | awk -v disp="$2" -v maxg="$3" '
     function num(s,   m, n, p, tail, v) {
@@ -198,7 +174,6 @@ trd_opcoes() {
     }'
 }
 
-# Desliga a troca na conta (config.cfg) e na execucao atual.
 trd_desligar() {
     if type set_config > /dev/null 2>&1; then
         set_config FUNC_trade n 2>/dev/null
@@ -223,7 +198,6 @@ func_trade() {
         return 0
     fi
 
-    # Espaca as tentativas (30 min).
     _tr_agora=`date +%s`
     _tr_try=`cat "$TMP/last_trade_try" 2>/dev/null`
     case "$_tr_try" in ''|*[!0-9]*) _tr_try=0 ;; esac
@@ -249,7 +223,6 @@ func_trade() {
             break
         fi
 
-        # Prata e ouro ANTES. Sem o ouro nao ha como conferir: nao clica.
         _tr_pr=`trd_prata_raw "$TMP/TRADE_PAGE"`
         [ -n "$_tr_pr" ] || _tr_pr=`trd_prata_user`
         _tr_og=`trd_ouro_raw "$TMP/TRADE_PAGE"`
@@ -265,7 +238,6 @@ func_trade() {
         _tr_ogn=`trd_num "$_tr_og"`
         _tr_disp=`trd_disp "$TMP/TRADE_PAGE"`
 
-        # Limite diario esgotado: nada a fazer hoje.
         if [ "$_tr_disp" = "0" ]; then
             printf "Trade: limite diario de troca ja usado\n"
             _tr_fim=feito
@@ -303,7 +275,6 @@ func_trade() {
         fetch_page "$_tr_href" "$TMP/TRADE_RESP"
         _tr_cliques=$((_tr_cliques + 1))
 
-        # Confere: ouro e limite diario DEPOIS.
         fetch_page "/trade/exchange" "$TMP/TRADE_AFTER" 2>/dev/null
         _tr_og2=`trd_ouro_raw "$TMP/TRADE_AFTER"`
         [ -n "$_tr_og2" ] || _tr_og2=`trd_ouro_user`
@@ -365,7 +336,6 @@ func_trade() {
         esac
     done
 
-    # Fim normal (limite usado / nada mais a trocar): fecha o dia.
     if [ "$_tr_fim" = "feito" ] || { [ -z "$_tr_fim" ] && [ "$_tr_cliques" -gt 0 ] && false; }; then
         printf '%s' "$_tr_hoje" > "$TMP/last_trade" 2>/dev/null
     fi
@@ -420,7 +390,6 @@ clan_money() {
         ''|*[!0-9]*) _cm_ultimo=0 ;;
     esac
 
-    # Mantem o intervalo de 120 minutos usado pelo fluxo antigo.
     if [ $((_cm_agora - _cm_ultimo)) -lt 7200 ]; then
         unset _cm_agora _cm_ultimo
         return 0
@@ -432,8 +401,6 @@ clan_money() {
     case "$_cm_valor" in ''|*[!0-9]*) _cm_valor=100000 ;; esac
     [ "$_cm_valor" -gt 0 ] || _cm_valor=100000
 
-    # Pagina da propria doacao: o r= certo e o dela. Se nao abrir ou nao
-    # trouxer r=, cai no comportamento antigo (pagina principal do cla).
     _cm_code=""
     _cm_base="$TMP/CMONEY_PAGE"
     if fetch_page "/clan/${CLD}/money/" "$TMP/CMONEY_PAGE"; then
@@ -455,10 +422,8 @@ clan_money() {
 
         printf '%s\n' "$_cm_url"
 
-        # Uma unica chamada: evita doar duas vezes na mesma execucao.
         fetch_page "$_cm_url" "$TMP/CMONEY_RESP"
 
-        # Marca somente depois da chamada ter sido realizada.
         printf '%s' "$_cm_agora" > "$TMP/last_clan_money" 2>/dev/null
 
         _cm_depois=`trd_prata_raw "$TMP/CMONEY_RESP"`

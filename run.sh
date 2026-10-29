@@ -1,4 +1,3 @@
-#!/bin/sh
 # run.sh - Loop principal de rotinas e agendamento
 
 twm_play() {
@@ -100,12 +99,14 @@ twm_play() {
 
         (*)
             # Se a conta foi iniciada especificamente com modo Coliseu (-cl)
+            # Troca e doacao ANTES do Coliseu: a batalha pode segurar a conta
+            # por muito tempo e, antes, a tarefas_livres so rodava depois dela.
+            tarefas_livres
             if echo "$RUN" | grep -q -E '[-]cl'; then
                 arena_duel
                 coliseum_start
                 messages_info
             fi
-            tarefas_livres
             func_sleep
             func_crono
             ;;

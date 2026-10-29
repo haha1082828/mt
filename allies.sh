@@ -492,7 +492,14 @@ al_apply() {
     fi
 
     _novos=`sort -u "$TMP/allies_tmp.txt" | grep -v '^$'`
+    # Modo 6 sem nenhum lider (todos removidos pelo setup) e resultado legitimo: zera.
+    # Nos demais casos, lista vazia pode ser falha de rede: nao sobrescreve.
     if [ -z "$_novos" ]; then
+        if [ "$_am" = 6 ] && ! grep -q -E '^[0-9]+$' "$TWM_ACC_DIR/allies_lideres.txt" 2>/dev/null; then
+            : > "$TMP/allies.txt"
+            : > "$TMP/callies.txt"
+            return 0
+        fi
         return 1
     fi
     printf '%s\n' "$_novos" > "$TMP/allies.txt"

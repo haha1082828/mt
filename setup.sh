@@ -86,6 +86,8 @@ show_menu() {
     printf " \033[1;92m[5] \033[0m  Iniciar 🤖\n"
     printf " \033[1;92m[6] \033[0m  Atualizar Script\n"
     printf " \033[1;92m[7] \033[0m  Aliados em todas as contas\n"
+    printf " \033[1;92m[8] \033[0m  Reaplicar aliados (contas novas)\n"
+    printf " \033[1;92m[9] \033[0m  Lideres de aliados (ver/remover)\n"
     printf " \033[1;91m[0] \033[0m  Sair\n\n"
     printf " \033[1;92mDRAGONS \033[0m ▸ "
 }
@@ -347,7 +349,10 @@ update_script() {
 
 # Loop principal
 # ---------------------------------------------------------------------------
-# [7] Aliados em todas as contas
+# [7] Aliados em todas as contas  |  [8] Reaplicar  |  [9] Lideres
+# Configuracao central: $TWMHOME/aliados_central.txt
+#   MODE=5|6|7
+#   um ID de lider por linha (so para 6 e 7)
 # ---------------------------------------------------------------------------
 al_cfg_set() {   # $1 arquivo  $2 chave  $3 valor
     touch "$1" 2>/dev/null
@@ -356,6 +361,65 @@ al_cfg_set() {   # $1 arquivo  $2 chave  $3 valor
     mv "$1.tmp" "$1"
 }
 
+aliados_central_file() { printf '%s' "$HOME/.twm/aliados_central.txt"; }
+
+# Extrai IDs de texto livre (links /user/ID ou numeros soltos), um por linha.
+aliados_extrai_ids() {
+    tr ', ' '\n\n' | sed -n 's,.*/user/\([0-9][0-9]*\).*,\1,p; /^[0-9][0-9]*$/p' | sort -u
+}
+
+# Le a configuracao central. Preenche _al_mode e _al_ids. Retorna 1 se nao existe.
+aliados_ler_central() {
+    _al_f=`aliados_central_file`
+    [ -s "$_al_f" ] || return 1
+    _al_mode=`grep -E '^MODE=' "$_al_f" | tail -n1 | cut -d= -f2`
+    _al_ids=`grep -E '^[0-9]+$' "$_al_f" | sort -u`
+    return 0
+}
+
+aliados_gravar_central() {   # $1 modo  $2 ids (texto)
+    _al_f=`aliados_central_file`
+    mkdir -p "$HOME/.twm" 2>/dev/null
+    {
+        printf 'MODE=%s\n' "$1"
+        [ -n "$2" ] && printf '%s\n' "$2"
+    } > "$_al_f"
+}
+
+# Grava a configuracao central em TODAS as contas cadastradas e marca para
+# reaplicar na proxima volta. Contas novas tambem entram aqui.
+aliados_aplicar_contas() {
+    aliados_ler_central || { printf "Nenhuma configuracao de aliados salva ainda.\n"; return 1; }
+    _n=0
+    if [ ! -s "$ACCOUNTS_FILE" ]; then
+        printf "Nenhuma conta cadastrada.\n"
+        return 1
+    fi
+    while IFS='|' read -r _srv _usr _enc; do
+        case "$_srv" in ''|\#*) continue ;; esac
+        [ -z "$_usr" ] && continue
+        _tag=$(server_tag "$_srv")
+        _dir="$HOME/.twm/${_tag}_${_usr}"
+        mkdir -p "$_dir" 2>/dev/null
+        chmod 700 "$_dir" 2>/dev/null
+        if [ "$_al_mode" = 5 ]; then
+            : > "$_dir/allies_lideres.txt"
+        else
+            printf '%s\n' "$_al_ids" > "$_dir/allies_lideres.txt"
+        fi
+        al_cfg_set "$_dir/config.cfg" "ALLIES" "$_al_mode"
+        rm -f "$_dir/allies_state" "$_dir/allies_try" 2>/dev/null
+        printf "  [%s] %s -> ALLIES=%s\n" "$_tag" "$_usr" "$_al_mode"
+        _n=$((_n + 1))
+    done < "$ACCOUNTS_FILE"
+    printf "\n%s conta(s) configurada(s). A lista e aplicada na proxima volta de cada conta.\n" "$_n"
+    unset _srv _usr _enc _tag _dir _n
+    return 0
+}
+
+aliados_pausa() { printf "\033[2mENTER para voltar ▸\033[0m"; read -r _d; unset _d; }
+
+# [7] Definir modo e lideres, e aplicar em todas as contas
 aliados_todas_contas() {
     clear
     printf "${GREEN}🐉 DRAGONS${RESET}  ${WHITE}ALIADOS EM TODAS AS CONTAS${RESET}\n${DIM}────────────────────────────────────────────${RESET}\n\n"
@@ -374,17 +438,17 @@ aliados_todas_contas() {
 
     _ids=""
     if [ "$_mode" != 5 ]; then
-        printf "\nCole os links ou IDs dos LIDERES (ex.: furiadetitas.net/user/12345),\n"
-        printf "separados por espaco ou virgula. Linha vazia para terminar:\n"
+        printf "\nCole os links ou IDs dos LIDERES (ex.: furiadetitas.net/user/12345).\n"
+        printf "Pode colar varios, um por linha. Linha vazia para terminar:\n"
         _raw=""
         while IFS= read -r _l; do
             [ -z "$_l" ] && break
             _raw="$_raw $_l"
         done
-        _ids=`printf '%s\n' "$_raw" | tr ', ' '\n\n' | sed -n 's,.*/user/\([0-9][0-9]*\).*,\1,p; /^[0-9][0-9]*$/p' | sort -u`
+        _ids=`printf '%s\n' "$_raw" | aliados_extrai_ids`
         if [ -z "$_ids" ]; then
             printf "\nNenhum ID valido. Nada foi alterado.\n"
-            printf "\033[2mENTER para voltar ▸\033[0m"; read -r _d
+            aliados_pausa
             return 0
         fi
         printf "\nLideres informados: %s\n" "`printf '%s\n' "$_ids" | wc -l | tr -d ' '`"
@@ -392,36 +456,88 @@ aliados_todas_contas() {
 
     printf "\nAplicar nas contas cadastradas? (y/n): "
     read -r _ok
-    case "$_ok" in y|Y) ;; *) printf "Cancelado.\n"; read -r _d; return 0 ;; esac
+    case "$_ok" in y|Y) ;; *) printf "Cancelado.\n"; aliados_pausa; return 0 ;; esac
 
-    _n=0
-    if [ ! -s "$ACCOUNTS_FILE" ]; then
-        printf "Nenhuma conta cadastrada.\n"
-    else
-        while IFS='|' read -r _srv _usr _enc; do
-            case "$_srv" in ''|\#*) continue ;; esac
-            [ -z "$_usr" ] && continue
-            _tag=$(server_tag "$_srv")
-            _dir="$HOME/.twm/${_tag}_${_usr}"
-            mkdir -p "$_dir" 2>/dev/null
-            chmod 700 "$_dir" 2>/dev/null
-            if [ "$_mode" = 5 ]; then
-                : > "$_dir/allies_lideres.txt"
-            else
-                printf '%s\n' "$_ids" > "$_dir/allies_lideres.txt"
-            fi
-            al_cfg_set "$_dir/config.cfg" "ALLIES" "$_mode"
-            rm -f "$_dir/allies_state" "$_dir/allies_try" 2>/dev/null
-            printf "  [%s] %s -> ALLIES=%s\n" "$_tag" "$_usr" "$_mode"
-            _n=$((_n + 1))
-        done < "$ACCOUNTS_FILE"
+    aliados_gravar_central "$_mode" "$_ids"
+    aliados_aplicar_contas
+    aliados_pausa
+    unset _am _mode _ids _raw _l _ok
+}
+
+# [8] Reaplicar a configuracao salva (use depois de adicionar contas)
+aliados_reaplicar() {
+    clear
+    printf "${GREEN}🐉 DRAGONS${RESET}  ${WHITE}REAPLICAR ALIADOS${RESET}\n${DIM}────────────────────────────────────────────${RESET}\n\n"
+    if ! aliados_ler_central; then
+        printf "Nenhuma configuracao de aliados salva. Use a opcao [7] primeiro.\n"
+        aliados_pausa
+        return 0
     fi
+    printf "Modo salvo: %s  |  lideres: %s\n\n" "$_al_mode" "`printf '%s\n' "$_al_ids" | grep -c . | tr -d ' '`"
+    printf "Reaplicar em todas as contas, inclusive as novas? (y/n): "
+    read -r _ok
+    case "$_ok" in
+        y|Y) printf "\n"; aliados_aplicar_contas ;;
+        *)   printf "Cancelado.\n" ;;
+    esac
+    aliados_pausa
+    unset _ok
+}
 
-    printf "\n%s conta(s) configurada(s).\n" "$_n"
-    printf "A lista e aplicada quando cada conta roda (1x por dia, ou logo apos esta mudanca).\n"
-    printf "\033[2mENTER para voltar ▸\033[0m"
-    read -r _d
-    unset _srv _usr _enc _tag _dir _n _am _mode _ids _raw _ok _d
+# [9] Ver, adicionar e remover lideres
+aliados_lideres() {
+    while true; do
+        clear
+        printf "${GREEN}🐉 DRAGONS${RESET}  ${WHITE}LIDERES DE ALIADOS${RESET}\n${DIM}────────────────────────────────────────────${RESET}\n\n"
+        if ! aliados_ler_central; then
+            printf "Nenhuma configuracao salva. Use a opcao [7] primeiro.\n"
+            aliados_pausa
+            return 0
+        fi
+        printf "Modo: %s  (5 = so meu cla, sem lideres)\n\n" "$_al_mode"
+        _i=0
+        for _id in $_al_ids; do
+            _i=$((_i + 1))
+            printf " %2d) %s\n" "$_i" "$_id"
+        done
+        [ "$_i" -eq 0 ] && printf " (nenhum lider cadastrado)\n"
+        printf "\n a) adicionar lideres\n r) remover lider(es) pelo numero (ex.: 2 ou 1,3)\n 0) voltar\n\nEscolha: "
+        read -r _op
+        case "$_op" in
+            0|'') return 0 ;;
+            a|A)
+                printf "Cole os links ou IDs (linha vazia para terminar):\n"
+                _raw=""
+                while IFS= read -r _l; do [ -z "$_l" ] && break; _raw="$_raw $_l"; done
+                _novos=`printf '%s\n' "$_raw" | aliados_extrai_ids`
+                _ids=`printf '%s\n%s\n' "$_al_ids" "$_novos" | grep -E '^[0-9]+$' | sort -u`
+                aliados_gravar_central "$_al_mode" "$_ids"
+                printf "\nLider(es) adicionado(s). Reaplicando nas contas...\n"
+                aliados_aplicar_contas
+                aliados_pausa
+                ;;
+            r|R)
+                printf "Numero(s) para remover: "
+                read -r _nums
+                _ids=""
+                _i=0
+                for _id in $_al_ids; do
+                    _i=$((_i + 1))
+                    case ",`printf '%s' "$_nums" | tr -d ' '`," in
+                        *",$_i,"*) ;;
+                        *) _ids="$_ids
+$_id" ;;
+                    esac
+                done
+                _ids=`printf '%s\n' "$_ids" | grep -E '^[0-9]+$' | sort -u`
+                aliados_gravar_central "$_al_mode" "$_ids"
+                printf "\nLider(es) removido(s). Reaplicando nas contas...\n"
+                aliados_aplicar_contas
+                aliados_pausa
+                ;;
+            *) ;;
+        esac
+    done
 }
 
 while true; do
@@ -449,6 +565,8 @@ while true; do
             ;;
         6) update_script ;;
         7) aliados_todas_contas ;;
+        8) aliados_reaplicar ;;
+        9) aliados_lideres ;;
         0) printf "\nSaindo...\n"; exit 0 ;;
     esac
 done

@@ -319,6 +319,8 @@ masmorra_adiar() {
 # esta aplicada num deles nada mais deve competir. Ao terminar o evento,
 # o start() roda o checklist completo e as demais atividades.
 tarefas_livres() {
+    # Aliados por lista (setup.sh): aplica 1x por dia / quando muda. Sem custo se nao houver modo 5-7.
+    al_apply_saved 2>/dev/null
     [ -n "$CLD" ] || clan_id 2>/dev/null
 
     # --- Numeros do painel, a cada 3 min

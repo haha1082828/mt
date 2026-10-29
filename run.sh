@@ -5,6 +5,11 @@ twm_play() {
         clan_id
     fi
 
+    # Aliados por lista (setup [7]): aplica 1x por dia / quando muda. Fica aqui,
+    # antes de qualquer desvio (caverna, eventos, coliseu), para nao depender
+    # da tarefas_livres. Quando nao ha modo 5-7, retorna na hora.
+    al_apply_saved 2>/dev/null
+
     # Se a flag de modo forçado for de caverna (-cv) e o horário NÃO for de evento obrigatório,
     # executa prioritariamente a rotina da caverna.
     if [ -s "$TMP/runmode_file" ]; then

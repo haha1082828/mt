@@ -1,4 +1,3 @@
-#!/bin/sh
 # setup.sh - Gerenciamento de contas do TWM Multi-contas (Completo)
 
 # CORRECAO (seguranca): sem umask o accounts.conf nascia 644 (legivel por
@@ -86,6 +85,7 @@ show_menu() {
     printf " \033[1;92m[4] \033[0m  Testar login\n"
     printf " \033[1;92m[5] \033[0m  Iniciar 🤖\n"
     printf " \033[1;92m[6] \033[0m  Atualizar Script\n"
+    printf " \033[1;92m[7] \033[0m  Aliados em todas as contas\n"
     printf " \033[1;91m[0] \033[0m  Sair\n\n"
     printf " \033[1;92mDRAGONS \033[0m ▸ "
 }
@@ -346,6 +346,84 @@ update_script() {
 }
 
 # Loop principal
+# ---------------------------------------------------------------------------
+# [7] Aliados em todas as contas
+# ---------------------------------------------------------------------------
+al_cfg_set() {   # $1 arquivo  $2 chave  $3 valor
+    touch "$1" 2>/dev/null
+    grep -v "^$2=" "$1" > "$1.tmp" 2>/dev/null
+    printf '%s=%s\n' "$2" "$3" >> "$1.tmp"
+    mv "$1.tmp" "$1"
+}
+
+aliados_todas_contas() {
+    clear
+    printf "${GREEN}🐉 DRAGONS${RESET}  ${WHITE}ALIADOS EM TODAS AS CONTAS${RESET}\n${DIM}────────────────────────────────────────────${RESET}\n\n"
+    printf " 1- So os aliados do meu cla (membros)\n"
+    printf " 2- So os cla(s) dos lideres que eu informar\n"
+    printf " 3- Os dois (meu cla + cla(s) dos lideres)\n"
+    printf " 0- Cancelar\n\n"
+    printf "Escolha: "
+    read -r _am
+    case "$_am" in
+        1) _mode=5 ;;
+        2) _mode=6 ;;
+        3) _mode=7 ;;
+        *) return 0 ;;
+    esac
+
+    _ids=""
+    if [ "$_mode" != 5 ]; then
+        printf "\nCole os links ou IDs dos LIDERES (ex.: furiadetitas.net/user/12345),\n"
+        printf "separados por espaco ou virgula. Linha vazia para terminar:\n"
+        _raw=""
+        while IFS= read -r _l; do
+            [ -z "$_l" ] && break
+            _raw="$_raw $_l"
+        done
+        _ids=`printf '%s\n' "$_raw" | tr ', ' '\n\n' | sed -n 's,.*/user/\([0-9][0-9]*\).*,\1,p; /^[0-9][0-9]*$/p' | sort -u`
+        if [ -z "$_ids" ]; then
+            printf "\nNenhum ID valido. Nada foi alterado.\n"
+            printf "\033[2mENTER para voltar ▸\033[0m"; read -r _d
+            return 0
+        fi
+        printf "\nLideres informados: %s\n" "`printf '%s\n' "$_ids" | wc -l | tr -d ' '`"
+    fi
+
+    printf "\nAplicar nas contas cadastradas? (y/n): "
+    read -r _ok
+    case "$_ok" in y|Y) ;; *) printf "Cancelado.\n"; read -r _d; return 0 ;; esac
+
+    _n=0
+    if [ ! -s "$ACCOUNTS_FILE" ]; then
+        printf "Nenhuma conta cadastrada.\n"
+    else
+        while IFS='|' read -r _srv _usr _enc; do
+            case "$_srv" in ''|\#*) continue ;; esac
+            [ -z "$_usr" ] && continue
+            _tag=$(server_tag "$_srv")
+            _dir="$HOME/.twm/${_tag}_${_usr}"
+            mkdir -p "$_dir" 2>/dev/null
+            chmod 700 "$_dir" 2>/dev/null
+            if [ "$_mode" = 5 ]; then
+                : > "$_dir/allies_lideres.txt"
+            else
+                printf '%s\n' "$_ids" > "$_dir/allies_lideres.txt"
+            fi
+            al_cfg_set "$_dir/config.cfg" "ALLIES" "$_mode"
+            rm -f "$_dir/allies_state" "$_dir/allies_try" 2>/dev/null
+            printf "  [%s] %s -> ALLIES=%s\n" "$_tag" "$_usr" "$_mode"
+            _n=$((_n + 1))
+        done < "$ACCOUNTS_FILE"
+    fi
+
+    printf "\n%s conta(s) configurada(s).\n" "$_n"
+    printf "A lista e aplicada quando cada conta roda (1x por dia, ou logo apos esta mudanca).\n"
+    printf "\033[2mENTER para voltar ▸\033[0m"
+    read -r _d
+    unset _srv _usr _enc _tag _dir _n _am _mode _ids _raw _ok _d
+}
+
 while true; do
     show_menu
     read -r opt
@@ -370,6 +448,7 @@ while true; do
             exit 0
             ;;
         6) update_script ;;
+        7) aliados_todas_contas ;;
         0) printf "\nSaindo...\n"; exit 0 ;;
     esac
 done

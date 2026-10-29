@@ -481,21 +481,31 @@ al_apply() {
     fi
 
     if [ "$_am" = 6 ] || [ "$_am" = 7 ]; then
+        [ -n "$CLD" ] || clan_id 2>/dev/null
+        _falhas=0
         while IFS= read -r _uid; do
             case "$_uid" in ''|*[!0-9]*) continue ;; esac
             _r=`al_lider "$_uid"`
             _cid=${_r%%|*}
             _nome=${_r#*|}
+            # Lider do PROPRIO cla: nao e aliado. Ignorado (nao entra em callies).
+            if [ -n "$CLD" ] && [ "$_cid" = "$CLD" ]; then
+                printf "Aliados: lider %s e do meu cla - ignorado\n" "$_uid"
+                continue
+            fi
+            # Sem clã na pagina = falha de rede/sessao (nao e "lider sem clã")
+            [ -n "$_cid" ] || _falhas=$((_falhas + 1))
             [ -n "$_cid" ] && al_members_clan "$_cid"
             [ -n "$_nome" ] && printf '%s\n' "$_nome" >> "$TMP/callies_new.txt"
         done < "$TWM_ACC_DIR/allies_lideres.txt"
     fi
 
     _novos=`sort -u "$TMP/allies_tmp.txt" | grep -v '^$'`
-    # Modo 6 sem nenhum lider (todos removidos pelo setup) e resultado legitimo: zera.
+    # Modo 6 sem clã aliado valido (lista vazia, so lider do meu cla, ou todos removidos)
+    # e resultado legitimo: zera. Se alguma pagina falhou (_falhas>0), mantem.
     # Nos demais casos, lista vazia pode ser falha de rede: nao sobrescreve.
     if [ -z "$_novos" ]; then
-        if [ "$_am" = 6 ] && ! grep -q -E '^[0-9]+$' "$TWM_ACC_DIR/allies_lideres.txt" 2>/dev/null; then
+        if [ "$_am" = 6 ] && [ "${_falhas:-0}" -eq 0 ]; then
             : > "$TMP/allies.txt"
             : > "$TMP/callies.txt"
             return 0

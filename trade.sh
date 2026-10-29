@@ -447,7 +447,7 @@ clan_money() {
 
     printf "Clan money ...\n"
 
-    _cm_valor=${FUNC_clan_money_silver:-100000}
+    _cm_valor=${FUNC_clan_money_silver:-1000}
     case "$_cm_valor" in ''|*[!0-9]*) _cm_valor=1000 ;; esac
     [ "$_cm_valor" -gt 0 ] || _cm_valor=1000
 

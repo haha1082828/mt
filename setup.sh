@@ -510,11 +510,21 @@ aliados_http() {   # $1 = caminho (ex.: /user/123). Imprime o HTML, so leitura (
 
 # imprime "ID|nome|cla" lendo a pagina do lider (mesmo padrao do allies.sh)
 aliados_consulta_lider() {
+    # "meu cla" = clas que aparecem na propria pagina /user (menu/perfil de quem esta logado)
+    _c_meu=`aliados_http "/user" | grep -E -o '/clan/[0-9]{1,3}' | cut -d/ -f3 | sort -u`
     _c_html=`aliados_http "/user/$1"`
-    _c_cid=`printf '%s' "$_c_html" | grep -E -o '/clan/[0-9]{1,3}' | tail -n1 | cut -d/ -f3`
+    _c_ids=`printf '%s' "$_c_html" | grep -E -o '/clan/[0-9]{1,3}' | cut -d/ -f3`
+    _c_cid=""
+    for _c_x in $_c_ids; do
+        printf '%s\n' "$_c_meu" | grep -q -x "$_c_x" && continue
+        _c_cid="$_c_x"; break
+    done
+    if [ -z "$_c_cid" ] && printf '%s\n' "$_c_ids" | grep -q -x "`printf '%s' "$_c_meu" | head -n1`"; then
+        _c_cid=`printf '%s' "$_c_meu" | head -n1`
+    fi
     _c_nome=`printf '%s' "$_c_html" | sed 's,/clan/,\n/clan/,g' | grep -E "</a>, <span class='blue'|</a>, <span class='green'" | cut -d\< -f1 | cut -d\> -f2 | sed 's,\ ,_,' | head -n1`
     printf '%s|%s|%s\n' "$1" "$_c_nome" "$_c_cid"
-    unset _c_html _c_cid _c_nome
+    unset _c_html _c_cid _c_nome _c_meu _c_ids _c_x
 }
 
 # grava/atualiza a linha de um lider na info central

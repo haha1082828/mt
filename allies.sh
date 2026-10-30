@@ -463,10 +463,21 @@ al_members_clan() {
 # al_lider <uid>: imprime "cid|nome_do_lider" lendo a pagina do usuario
 al_lider() {
     run_curl_exec "${URL}/user/$1" > "$TMP/al_user.html" 2>/dev/null
-    _alc=`grep -E -o '/clan/[0-9]{1,3}' "$TMP/al_user.html" | tail -n1 | cut -d/ -f3`
+    # A pagina do lider traz varios links /clan/ID (menu, perfil...). O menu costuma
+    # apontar para o cla de quem esta logado (o meu). Entao: pega o primeiro ID que
+    # NAO seja o meu cla. Se so existir o meu, o lider e do meu cla.
+    _al_ids=`grep -E -o '/clan/[0-9]{1,3}' "$TMP/al_user.html" | cut -d/ -f3`
+    _alc=""
+    for _al_c in $_al_ids; do
+        if [ -n "$CLD" ] && [ "$_al_c" = "$CLD" ]; then continue; fi
+        _alc="$_al_c"; break
+    done
+    if [ -z "$_alc" ] && [ -n "$CLD" ] && printf '%s\n' "$_al_ids" | grep -q -x "$CLD"; then
+        _alc="$CLD"
+    fi
     _aln=`sed 's,/clan/,\n/clan/,g' "$TMP/al_user.html" | grep -E "</a>, <span class='blue'|</a>, <span class='green'" | cut -d\< -f1 | cut -d\> -f2 | sed 's,\ ,_,' | head -n1`
     printf '%s|%s\n' "$_alc" "$_aln"
-    unset _alc _aln
+    unset _alc _aln _al_ids _al_c
 }
 
 # al_apply <modo>: monta allies.txt e callies.txt. Nao sobrescreve se vier vazio.

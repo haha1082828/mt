@@ -363,6 +363,11 @@ al_cfg_set() {   # $1 arquivo  $2 chave  $3 valor
 
 aliados_central_file() { printf '%s' "$HOME/.twm/aliados_central.txt"; }
 
+# Extrai IDs de CLA de links /clan/ID (um por linha).
+aliados_extrai_clas() {
+    tr ' ,' '\n\n' | sed -n 's,.*/clan/\([0-9][0-9]*\).*,\1,p' | sort -u
+}
+
 # Extrai IDs de texto livre (links /user/ID ou numeros soltos), um por linha.
 aliados_extrai_ids() {
     tr ', ' '\n\n' | sed -n 's,.*/user/\([0-9][0-9]*\).*,\1,p; /^[0-9][0-9]*$/p' | sort -u
@@ -403,9 +408,9 @@ aliados_aplicar_contas() {
         mkdir -p "$_dir" 2>/dev/null
         chmod 700 "$_dir" 2>/dev/null
         if [ "$_al_mode" = 5 ]; then
-            : > "$_dir/allies_lideres.txt"
+            : > "$_dir/allies_clas.txt"
         else
-            printf '%s\n' "$_al_ids" > "$_dir/allies_lideres.txt"
+            printf '%s\n' "$_al_ids" > "$_dir/allies_clas.txt"
         fi
         al_cfg_set "$_dir/config.cfg" "ALLIES" "$_al_mode"
         rm -f "$_dir/allies_state" "$_dir/allies_try" 2>/dev/null
@@ -438,20 +443,20 @@ aliados_todas_contas() {
 
     _ids=""
     if [ "$_mode" != 5 ]; then
-        printf "\nCole os links ou IDs dos LIDERES (ex.: furiadetitas.net/user/12345).\n"
+        printf "\nCole os links dos CLAS aliados (ex.: furiadetitas.net/clan/12345).\n"
         printf "Pode colar varios, um por linha. Linha vazia para terminar:\n"
         _raw=""
         while IFS= read -r _l; do
             [ -z "$_l" ] && break
             _raw="$_raw $_l"
         done
-        _ids=`printf '%s\n' "$_raw" | aliados_extrai_ids`
+        _ids=`printf '%s\n' "$_raw" | aliados_extrai_clas`
         if [ -z "$_ids" ]; then
-            printf "\nNenhum ID valido. Nada foi alterado.\n"
+            printf "\nNenhum link de cla valido (use links /clan/NUMERO). Nada foi alterado.\n"
             aliados_pausa
             return 0
         fi
-        printf "\nLideres informados: %s\n" "`printf '%s\n' "$_ids" | wc -l | tr -d ' '`"
+        printf "\nClas informados: %s\n" "`printf '%s\n' "$_ids" | wc -l | tr -d ' '`"
     fi
 
     printf "\nAplicar nas contas cadastradas? (y/n): "
@@ -642,52 +647,43 @@ aliados_lideres() {
             aliados_pausa
             return 0
         fi
-        printf "Modo: %s  (5 = so meu cla, sem lideres)\n\n" "$_al_mode"
-        _info="$HOME/.twm/aliados_info_central.txt"
-        [ -s "$_info" ] || _info=`aliados_info_arquivo`
+        printf "Modo: %s  (5 = so meu cla, sem clas aliados)\n\n" "$_al_mode"
         _i=0
         for _id in $_al_ids; do
             _i=$((_i + 1))
-            _linha=""
-            [ -n "$_info" ] && _linha=`grep "^$_id|" "$_info" | head -n1`
-            if [ -n "$_linha" ]; then
-                _nm=`printf '%s' "$_linha" | cut -d'|' -f2 | tr '_' ' '`
-                _cl=`printf '%s' "$_linha" | cut -d'|' -f3`
-                printf " %2d) %-10s %s  (cla %s)\n" "$_i" "$_id" "${_nm:-nome nao lido}" "${_cl:--}"
+            _mf="$HOME/.twm/aliados_membros_$_id.txt"
+            if [ -s "$_mf" ]; then
+                printf " %2d) cla %-10s %s membros\n" "$_i" "$_id" "`grep -c . "$_mf"`"
             else
-                printf " %2d) %s  (nome ainda nao lido - aparece apos a conta rodar)\n" "$_i" "$_id"
+                printf " %2d) cla %-10s (membros ainda nao lidos)\n" "$_i" "$_id"
             fi
         done
-        [ "$_i" -eq 0 ] && printf " (nenhum lider cadastrado)\n"
-        printf "\n a) adicionar lideres\n r) remover lider(es) pelo numero (ex.: 2 ou 1,3)\n v) ver lista de aliados de uma conta\n 0) voltar\n\nEscolha: "
+        [ "$_i" -eq 0 ] && printf " (nenhum cla cadastrado)\n"
+        printf "\n a) adicionar clas\n r) remover cla(s) pelo numero (ex.: 2 ou 1,3)\n v) ver lista de aliados de uma conta\n 0) voltar\n\nEscolha: "
         read -r _op
         case "$_op" in
             0|'') return 0 ;;
             v|V) aliados_ver_lista ;;
             a|A)
-                printf "Cole os links ou IDs (linha vazia para terminar):\n"
+                printf "Cole os links dos CLAS (ex.: furiadetitas.net/clan/12345), linha vazia para terminar:\n"
                 _raw=""
                 while IFS= read -r _l; do [ -z "$_l" ] && break; _raw="$_raw $_l"; done
-                _novos=`printf '%s\n' "$_raw" | aliados_extrai_ids`
+                _novos=`printf '%s\n' "$_raw" | aliados_extrai_clas`
                 _ids=`printf '%s\n%s\n' "$_al_ids" "$_novos" | grep -E '^[0-9]+$' | sort -u`
                 aliados_gravar_central "$_al_mode" "$_ids"
-                # Novos IDs: consulta o jogo agora e mostra nome e membros do cla
                 for _nid in `printf '%s\n' "$_novos" | grep -E '^[0-9]+$'`; do
-                    _lin=`aliados_consulta_lider "$_nid"`
-                    if [ -z "`printf '%s' "$_lin" | cut -d'|' -f3`" ]; then
-                        printf "\n%s: nao consegui ler (sessao expirada ou ID errado)\n" "$_nid"
+                    printf "\nCla %s: lendo membros...\n" "$_nid"
+                    aliados_membros_cla "$_nid" "$HOME/.twm/aliados_membros_$_nid.txt"
+                    _nm_c=`grep -c . "$HOME/.twm/aliados_membros_$_nid.txt"`
+                    printf "   membros: %s\n" "$_nm_c"
+                    if [ "$_nm_c" -eq 0 ]; then
+                        printf "   nao consegui ler os membros (sessao expirada ou cla errado)\n"
                         continue
                     fi
-                    aliados_info_central_set "$_lin"
-                    _nm=`printf '%s' "$_lin" | cut -d'|' -f2 | tr '_' ' '`
-                    _cl=`printf '%s' "$_lin" | cut -d'|' -f3`
-                    printf "\n%s: %s (cla %s)\n" "$_nid" "${_nm:-nome nao lido}" "$_cl"
-                    aliados_membros_cla "$_cl" "$HOME/.twm/aliados_membros_$_cl.txt"
-                    printf "   membros do cla: %s\n" "`grep -c . "$HOME/.twm/aliados_membros_$_cl.txt"`"
                     printf "   ver lista? (y/n): "; read -r _vm
-                    case "$_vm" in y|Y) aliados_paginar "$HOME/.twm/aliados_membros_$_cl.txt" "Membros do cla $_cl (lider $_nid)" ;; esac
+                    case "$_vm" in y|Y) aliados_paginar "$HOME/.twm/aliados_membros_$_nid.txt" "Membros do cla $_nid" ;; esac
                 done
-                printf "\nLider(es) adicionado(s). Reaplicando nas contas...\n"
+                printf "\nCla(s) adicionado(s). Reaplicando nas contas...\n"
                 aliados_aplicar_contas
                 aliados_pausa
                 ;;

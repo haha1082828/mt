@@ -445,7 +445,7 @@ arena_fullmana() {
 #   ALLIES=5  so o cla da conta (membros)
 #   ALLIES=6  so os cla(s) dos lideres da lista
 #   ALLIES=7  os dois
-# Lista de IDs de lideres: $TWM_ACC_DIR/allies_lideres.txt (um ID por linha)
+# Lista de IDs de CLAS aliados: $TWM_ACC_DIR/allies_clas.txt (um ID por linha)
 # Estado: $TWM_ACC_DIR/allies_state = "MODO|AAAAMMDD" (1x por dia)
 # Marcador por sessao: $TMP/allies_ok (TMP e RAM: some no reinicio e reaplica)
 # ---------------------------------------------------------------------------
@@ -453,8 +453,9 @@ arena_fullmana() {
 # al_members_clan <cid>: anexa os membros do cla em $TMP/allies_tmp.txt
 al_members_clan() {
     [ -n "$1" ] || return 1
+    _amc_out="${2:-$TMP/allies_tmp.txt}"
     for _aln in 5 4 3 2 1; do
-        run_curl_exec "${URL}/clan/$1/${_aln}" | grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}' | sed 's,\ ,_,' >> "$TMP/allies_tmp.txt"
+        run_curl_exec "${URL}/clan/$1/${_aln}" | grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}' | sed 's,\ ,_,' >> "$_amc_out"
         sleep 1
     done
     unset _aln
@@ -494,31 +495,33 @@ al_apply() {
     if [ "$_am" = 6 ] || [ "$_am" = 7 ]; then
         [ -n "$CLD" ] || clan_id 2>/dev/null
         _falhas=0
-        : > "$TWM_ACC_DIR/allies_lideres_info.txt" 2>/dev/null
-        while IFS= read -r _uid; do
-            case "$_uid" in ''|*[!0-9]*) continue ;; esac
-            _r=`al_lider "$_uid"`
-            _cid=${_r%%|*}
-            _nome=${_r#*|}
-            printf '%s|%s|%s\n' "$_uid" "$_nome" "$_cid" >> "$TWM_ACC_DIR/allies_lideres_info.txt" 2>/dev/null
-            # Lider do PROPRIO cla: nao e aliado. Ignorado (nao entra em callies).
+        _nclas=0
+        while IFS= read -r _cid; do
+            case "$_cid" in ''|*[!0-9]*) continue ;; esac
             if [ -n "$CLD" ] && [ "$_cid" = "$CLD" ]; then
-                printf "Aliados: lider %s e do meu cla - ignorado\n" "$_uid"
+                printf "Aliados: cla %s e o meu - ignorado\n" "$_cid"
                 continue
             fi
-            # Sem clã na pagina = falha de rede/sessao (nao e "lider sem clã")
-            [ -n "$_cid" ] || _falhas=$((_falhas + 1))
-            [ -n "$_cid" ] && al_members_clan "$_cid"
-            [ -n "$_nome" ] && printf '%s\n' "$_nome" >> "$TMP/callies_new.txt"
-        done < "$TWM_ACC_DIR/allies_lideres.txt"
+            _nclas=$((_nclas + 1))
+            : > "$TMP/al_cla_$_cid.txt"
+            al_members_clan "$_cid" "$TMP/al_cla_$_cid.txt"
+            if [ -s "$TMP/al_cla_$_cid.txt" ]; then
+                cat "$TMP/al_cla_$_cid.txt" >> "$TMP/allies_tmp.txt"
+                printf "Aliados: cla %s - %s membros\n" "$_cid" "`grep -c . "$TMP/al_cla_$_cid.txt"`"
+            else
+                _falhas=$((_falhas + 1))
+                printf "Aliados: cla %s sem membros lidos (falha?)\n" "$_cid"
+            fi
+        done < "$TWM_ACC_DIR/allies_clas.txt"
+        unset _nclas
     fi
 
     _novos=`sort -u "$TMP/allies_tmp.txt" | grep -v '^$'`
-    # Modo 6 sem clã aliado valido (lista vazia, so lider do meu cla, ou todos removidos)
+    # Modo 6 sem nenhum cla aliado valido (lista vazia ou so o meu cla): zera.
     # e resultado legitimo: zera. Se alguma pagina falhou (_falhas>0), mantem.
     # Nos demais casos, lista vazia pode ser falha de rede: nao sobrescreve.
     if [ -z "$_novos" ]; then
-        if [ "$_am" = 6 ] && [ "${_falhas:-0}" -eq 0 ]; then
+        if [ "$_am" = 6 ] && [ "${_falhas:-0}" -eq 0 ] && [ "${_nclas:-0}" -eq 0 ]; then
             : > "$TMP/allies.txt"
             : > "$TMP/callies.txt"
             return 0

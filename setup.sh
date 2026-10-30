@@ -542,14 +542,22 @@ aliados_info_central_set() {   # $1 = linha "ID|nome|cla"
     unset _ic
 }
 
-# membros de um cla (paginas 1..5) em arquivo
+# membros de um cla (paginas 1..5) em arquivo.
+# Diagnostico: guarda em $2.diag quantos perfis (/user/ID) e quantos nomes foram lidos.
 aliados_membros_cla() {   # $1 = cid  $2 = arquivo de saida
     : > "$2"
+    _perfis=""
     for _mp in 5 4 3 2 1; do
-        aliados_http "/clan/$1/$_mp" | grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}' | sed 's,\ ,_,' >> "$2"
+        _pg=`aliados_http "/clan/$1/$_mp"`
+        _perfis="$_perfis
+`printf '%s' "$_pg" | grep -o -E '/user/[0-9]+' | sort -u`"
+        printf '%s' "$_pg" | grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}' | sed 's,\ ,_,' >> "$2"
     done
     sort -u "$2" | grep -v '^$' > "$2.tmp" && mv "$2.tmp" "$2"
-    unset _mp
+    _nperf=`printf '%s\n' "$_perfis" | grep -c '/user/'`
+    _nnome=`grep -c . "$2"`
+    printf 'perfis encontrados: %s | nomes lidos: %s\n' "$_nperf" "$_nnome" > "$2.diag"
+    unset _mp _pg _perfis _nperf _nnome
 }
 
 # paginacao generica: $1 = arquivo, $2 = titulo
@@ -676,6 +684,7 @@ aliados_lideres() {
                     aliados_membros_cla "$_nid" "$HOME/.twm/aliados_membros_$_nid.txt"
                     _nm_c=`grep -c . "$HOME/.twm/aliados_membros_$_nid.txt"`
                     printf "   membros: %s\n" "$_nm_c"
+                    printf "   %s\n" "`cat "$HOME/.twm/aliados_membros_$_nid.txt.diag" 2>/dev/null`"
                     if [ "$_nm_c" -eq 0 ]; then
                         printf "   nao consegui ler os membros (sessao expirada ou cla errado)\n"
                         continue

@@ -454,13 +454,15 @@ arena_fullmana() {
 # Nomes de membros a partir do HTML de uma pagina de cla (stdin). MESMA leitura
 # usada pelo setup.sh: texto do link de cada jogador, mais o padrao antigo.
 al_extrai_nomes() {
-    _en_t=`cat`
+    # Achata quebras de linha: um nome que quebra de linha tambem e lido.
+    _en_t=`cat | tr '\n\r' '  '`
     {
-        # Padrao antigo (o que lia 43 de 50): nome comecando em letra maiuscula.
+        # Padrao antigo (lia 41 de 50): "/>Nome, <s" com nome em maiuscula.
         printf '%s\n' "$_en_t" | grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}'
         if [ "$1" != antigo ]; then
-            # Ampliado: qualquer nome entre "/>" e ", <s" (acentos, numeros, minusculas, _).
-            printf '%s\n' "$_en_t" | grep -o -E "[/]>[^<>,/]{2,30},[[:space:]]<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}'
+            # Ampliado: qualquer nome entre um ">" e ", <tag" (sem exigir "/>" nem "<s",
+            # aceita acento, numero, minuscula, "_" e espacos/quebras antes da tag).
+            printf '%s\n' "$_en_t" | grep -o -E "[>][^<>,/]{2,40},[[:space:]]*<" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}'
         fi
     } | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
       | awk 'length($0) > 1 && $0 !~ /[\/=<>]/ && $0 !~ /^[0-9]+$/ { gsub(/ /, "_"); print }' \
@@ -470,11 +472,34 @@ al_extrai_nomes() {
 al_members_clan() {
     [ -n "$1" ] || return 1
     _amc_out="${2:-$TMP/allies_tmp.txt}"
-    for _aln in 5 4 3 2 1; do
-        run_curl_exec "${URL}/clan/$1/${_aln}" | al_extrai_nomes >> "$_amc_out"
+    _amc_seen="$TMP/al_seen.$$"
+    : > "$_amc_seen"; : > "$_amc_out.raw"; : > "$_amc_out.raw_antigo"
+    _aln=1
+    while [ "$_aln" -le 8 ]; do
+        _amc_pg=`run_curl_exec "${URL}/clan/$1/${_aln}"`
+        _amc_novo=0
+        for _amc_x in `printf '%s' "$_amc_pg" | grep -o -E '/user/[0-9]+' | sort -u`; do
+            if ! grep -q -x -F "$_amc_x" "$_amc_seen"; then
+                printf '%s\n' "$_amc_x" >> "$_amc_seen"
+                _amc_novo=1
+            fi
+        done
+        [ "$_amc_novo" -eq 1 ] || break
+        printf '%s\n' "$_amc_pg" | al_extrai_nomes >> "$_amc_out.raw"
+        printf '%s\n' "$_amc_pg" | al_extrai_nomes antigo >> "$_amc_out.raw_antigo"
+        _aln=$((_aln + 1))
         sleep 1
     done
-    unset _aln _amc_out
+    _amc_np=`grep -c . "$_amc_seen"`
+    _amc_nn=`sort -u "$_amc_out.raw" | grep -c .`
+    # Mesmo teto de seguranca do setup: mais nomes que perfis = ruido, usa o padrao antigo.
+    if [ "$_amc_np" -gt 0 ] && [ "$_amc_nn" -gt "$_amc_np" ]; then
+        sort -u "$_amc_out.raw_antigo" | grep -v '^$' >> "$_amc_out"
+    else
+        sort -u "$_amc_out.raw" | grep -v '^$' >> "$_amc_out"
+    fi
+    rm -f "$_amc_out.raw" "$_amc_out.raw_antigo" "$_amc_seen"
+    unset _aln _amc_out _amc_pg _amc_novo _amc_x _amc_np _amc_nn _amc_seen
 }
 
 # al_lider <uid>: imprime "cid|nome_do_lider" lendo a pagina do usuario

@@ -397,21 +397,21 @@ aliados_extrai_clas() {
 # Usa o TEXTO do link de cada jogador (/user/ID ... >NOME<) e, como reforco,
 # o padrao antigo "Nome, <s". Junta os dois, tira duplicados e ruido de interface.
 aliados_extrai_nomes() {
-    # Achata quebras de linha: um nome que quebra de linha tambem e lido.
     _en_t=`cat | tr '\n\r' '  '`
     {
-        # Padrao antigo (lia 41 de 50): "/>Nome, <s" com nome em maiuscula.
+        # Novo padrão: captura o texto isolado pela tag </a> do perfil /user/
+        printf '%s\n' "$_en_t" | grep -o -E "/user/[0-9]+[^>]*>[^<]+</a>" | awk -F'>' '{print $2}' | awk -F'<' '{print $1}'
+        
+        # Padrões antigos mantidos por segurança
         printf '%s\n' "$_en_t" | grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}'
         if [ "$1" != antigo ]; then
-            # Ampliado: nome entre um ">" e ", <tag", aceitando ate 2 marcadores curtos
-            # <span ...>'</span> entre o nome e a virgula (ex.: class='not_here'), acento,
-            # numero, minuscula, "_" e quebras de linha.
             printf '%s\n' "$_en_t" | grep -o -E "[>][^<>,/]{2,40}(<span[^>]*>[^<]{0,3}</span>){0,2},[[:space:]]*<" | sed -E 's/^[>]//; s/[<,].*$//'
         fi
     } | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
       | awk 'length($0) > 1 && $0 !~ /[\/=<>]/ && $0 !~ /^[0-9]+$/ { gsub(/ /, "_"); print }' \
       | sort -u
 }
+
 
 # Le as 5 paginas do cla. Grava nomes em $2 e diagnostico em $2.diag.
 aliados_membros_cla() {   # $1 = cid   $2 = arquivo de saida

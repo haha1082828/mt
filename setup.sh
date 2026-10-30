@@ -347,27 +347,30 @@ update_script() {
 
 # Loop principal
 # ---- acesso ao jogo com a sessao (cookie.txt) de uma conta ----
-aliados_cookie_ref() {   # primeiro cookie.txt nao vazio entre as contas
-    while IFS='|' read -r _srv _usr _enc; do
-        case "$_srv" in ''|\#*) continue ;; esac
-        [ -z "$_usr" ] && continue
-        _t=$(server_tag "$_srv")
-        if [ -s "$HOME/.twm/${_t}_${_usr}/cookie.txt" ]; then
-            printf '%s' "$HOME/.twm/${_t}_${_usr}/cookie.txt"
-            break
-        fi
-    done < "$ACCOUNTS_FILE"
-    unset _srv _usr _enc _t
+aliados_cookie_ref() {
+    # O bot grava a sessao atual em $TMP/cookie.txt (na VPS: /dev/shm, na memoria),
+    # e a copia em ~/.twm pode estar velha. Usa o cookie MAIS RECENTE de todos.
+    _cands=`find "$HOME/.twm" /dev/shm "${PREFIX:-/nonexistent}/tmp" -maxdepth 4 -name cookie.txt -size +0c 2>/dev/null`
+    _best=""
+    if [ -n "$_cands" ]; then
+        _best=`find "$HOME/.twm" /dev/shm "${PREFIX:-/nonexistent}/tmp" -maxdepth 4 -name cookie.txt -size +0c -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n1 | cut -d' ' -f2-`
+        [ -n "$_best" ] || _best=`printf '%s\n' "$_cands" | head -n1`
+    fi
+    printf '%s' "$_best"
+    unset _cands _best
 }
 
-aliados_http() {   # $1 = caminho (ex.: /user/123). Imprime o HTML, so leitura (-b, nao -c)
-    command -v curl >/dev/null 2>&1 || { printf '  [diagnostico] curl nao instalado: rode "sudo apt install curl"\n' >&2; return 1; }
+aliados_http() {   # $1 = caminho (ex.: /clan/123/1). Imprime o HTML. Usa copia do cookie.
+    command -v curl >/dev/null 2>&1 || { printf '  ⚠️  curl nao instalado: rode "sudo apt install curl"\n' >&2; return 1; }
     _h_ck=`aliados_cookie_ref`
-    if [ -z "$_h_ck" ]; then printf '  [diagnostico] nenhuma conta tem cookie.txt: rode uma conta antes\n' >&2; return 1; fi
+    if [ -z "$_h_ck" ]; then printf '  ⚠️  nenhum cookie.txt encontrado: rode uma conta uma vez\n' >&2; return 1; fi
+    _h_tmp="$HOME/.twm/.ck_setup.$$"
+    cp "$_h_ck" "$_h_tmp" 2>/dev/null || return 1
     curl -sS -L --compressed --max-time 30 --proto =https --proto-redir =https \
          -A "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36" \
-         -b "$_h_ck" "https://$(server_url 1)$1" 2>/dev/null
-    unset _h_ck
+         -c "$_h_tmp" -b "$_h_tmp" "https://$(server_url 1)$1" 2>/dev/null
+    rm -f "$_h_tmp"
+    unset _h_ck _h_tmp
 }
 
 
@@ -459,7 +462,8 @@ aliados_membros_cla() {   # $1 = cid   $2 = arquivo de saida
     printf 'membros lidos: %s de %s perfis%s\n' "$_nn" "$_np" "$_ruido" > "$2.diag"
     if [ "$_np" -eq 0 ]; then
         _ck=`aliados_cookie_ref`
-        printf '  ⚠️  pagina sem membros. Causas comuns:\n'
+        printf '  ⚠️  pagina sem membros. Cookie usado: %s\n' "$_ck"
+        printf '  Causas comuns:\n'
         printf '      1) sessao antiga: o cookie so renova com a conta rodando\n'
         [ -n "$_ck" ] && printf '         cookie atualizado em: %s\n' "`date -r "$_ck" '+%d/%m %H:%M' 2>/dev/null || stat -c %y "$_ck" 2>/dev/null | cut -c1-16`"
         printf '         -> rode uma conta (./play.sh) por alguns minutos e tente de novo\n'

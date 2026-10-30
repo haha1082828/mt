@@ -484,6 +484,79 @@ aliados_reaplicar() {
     unset _ok
 }
 
+
+# ---- Consulta imediata ao jogo, usando a sessao (cookie.txt) de uma conta ----
+aliados_cookie_ref() {   # primeiro cookie.txt nao vazio entre as contas
+    while IFS='|' read -r _srv _usr _enc; do
+        case "$_srv" in ''|\#*) continue ;; esac
+        [ -z "$_usr" ] && continue
+        _t=$(server_tag "$_srv")
+        if [ -s "$HOME/.twm/${_t}_${_usr}/cookie.txt" ]; then
+            printf '%s' "$HOME/.twm/${_t}_${_usr}/cookie.txt"
+            break
+        fi
+    done < "$ACCOUNTS_FILE"
+    unset _srv _usr _enc _t
+}
+
+aliados_http() {   # $1 = caminho (ex.: /user/123). Imprime o HTML, so leitura (-b, nao -c)
+    _h_ck=`aliados_cookie_ref`
+    [ -n "$_h_ck" ] || return 1
+    curl -sS -L --compressed --max-time 30 --proto =https --proto-redir =https \
+         -A "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36" \
+         -b "$_h_ck" "https://$(server_url 1)$1" 2>/dev/null
+    unset _h_ck
+}
+
+# imprime "ID|nome|cla" lendo a pagina do lider (mesmo padrao do allies.sh)
+aliados_consulta_lider() {
+    _c_html=`aliados_http "/user/$1"`
+    _c_cid=`printf '%s' "$_c_html" | grep -E -o '/clan/[0-9]{1,3}' | tail -n1 | cut -d/ -f3`
+    _c_nome=`printf '%s' "$_c_html" | sed 's,/clan/,\n/clan/,g' | grep -E "</a>, <span class='blue'|</a>, <span class='green'" | cut -d\< -f1 | cut -d\> -f2 | sed 's,\ ,_,' | head -n1`
+    printf '%s|%s|%s\n' "$1" "$_c_nome" "$_c_cid"
+    unset _c_html _c_cid _c_nome
+}
+
+# grava/atualiza a linha de um lider na info central
+aliados_info_central_set() {   # $1 = linha "ID|nome|cla"
+    _ic="$HOME/.twm/aliados_info_central.txt"
+    touch "$_ic" 2>/dev/null
+    grep -v "^$(printf '%s' "$1" | cut -d'|' -f1)|" "$_ic" > "$_ic.tmp" 2>/dev/null
+    printf '%s\n' "$1" >> "$_ic.tmp"
+    mv "$_ic.tmp" "$_ic"
+    unset _ic
+}
+
+# membros de um cla (paginas 1..5) em arquivo
+aliados_membros_cla() {   # $1 = cid  $2 = arquivo de saida
+    : > "$2"
+    for _mp in 5 4 3 2 1; do
+        aliados_http "/clan/$1/$_mp" | grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}' | sed 's,\ ,_,' >> "$2"
+    done
+    sort -u "$2" | grep -v '^$' > "$2.tmp" && mv "$2.tmp" "$2"
+    unset _mp
+}
+
+# paginacao generica: $1 = arquivo, $2 = titulo
+aliados_paginar() {
+    _pg_f="$1"; _pg_t="$2"
+    _pg_total=`grep -c . "$_pg_f"`
+    _pg_ini=1
+    while [ "$_pg_ini" -le "$_pg_total" ]; do
+        _pg_fim=$((_pg_ini + 24))
+        clear
+        printf "${WHITE}%s${RESET}  (%s no total)\n\n" "$_pg_t" "$_pg_total"
+        sed -n "${_pg_ini},${_pg_fim}p" "$_pg_f" | awk -v base="$_pg_ini" '{ gsub(/_/, " "); printf "%4d) %s\n", base + NR - 1, $0 }'
+        _pg_ini=$((_pg_fim + 1))
+        if [ "$_pg_ini" -le "$_pg_total" ]; then
+            printf "\nENTER = proxima pagina, q = sair: "
+            read -r _pg_op
+            case "$_pg_op" in q|Q) break ;; esac
+        fi
+    done
+    unset _pg_f _pg_t _pg_total _pg_ini _pg_fim _pg_op
+}
+
 # [9] Ver, adicionar e remover lideres (com nome quando a conta ja leu)
 aliados_info_arquivo() {   # primeira conta que tem o arquivo de info dos lideres
     _ai=""
@@ -560,7 +633,8 @@ aliados_lideres() {
             return 0
         fi
         printf "Modo: %s  (5 = so meu cla, sem lideres)\n\n" "$_al_mode"
-        _info=`aliados_info_arquivo`
+        _info="$HOME/.twm/aliados_info_central.txt"
+        [ -s "$_info" ] || _info=`aliados_info_arquivo`
         _i=0
         for _id in $_al_ids; do
             _i=$((_i + 1))
@@ -587,6 +661,22 @@ aliados_lideres() {
                 _novos=`printf '%s\n' "$_raw" | aliados_extrai_ids`
                 _ids=`printf '%s\n%s\n' "$_al_ids" "$_novos" | grep -E '^[0-9]+$' | sort -u`
                 aliados_gravar_central "$_al_mode" "$_ids"
+                # Novos IDs: consulta o jogo agora e mostra nome e membros do cla
+                for _nid in `printf '%s\n' "$_novos" | grep -E '^[0-9]+$'`; do
+                    _lin=`aliados_consulta_lider "$_nid"`
+                    if [ -z "`printf '%s' "$_lin" | cut -d'|' -f3`" ]; then
+                        printf "\n%s: nao consegui ler (sessao expirada ou ID errado)\n" "$_nid"
+                        continue
+                    fi
+                    aliados_info_central_set "$_lin"
+                    _nm=`printf '%s' "$_lin" | cut -d'|' -f2 | tr '_' ' '`
+                    _cl=`printf '%s' "$_lin" | cut -d'|' -f3`
+                    printf "\n%s: %s (cla %s)\n" "$_nid" "${_nm:-nome nao lido}" "$_cl"
+                    aliados_membros_cla "$_cl" "$HOME/.twm/aliados_membros_$_cl.txt"
+                    printf "   membros do cla: %s\n" "`grep -c . "$HOME/.twm/aliados_membros_$_cl.txt"`"
+                    printf "   ver lista? (y/n): "; read -r _vm
+                    case "$_vm" in y|Y) aliados_paginar "$HOME/.twm/aliados_membros_$_cl.txt" "Membros do cla $_cl (lider $_nid)" ;; esac
+                done
                 printf "\nLider(es) adicionado(s). Reaplicando nas contas...\n"
                 aliados_aplicar_contas
                 aliados_pausa

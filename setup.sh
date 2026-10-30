@@ -397,11 +397,16 @@ aliados_extrai_clas() {
 # Usa o TEXTO do link de cada jogador (/user/ID ... >NOME<) e, como reforco,
 # o padrao antigo "Nome, <s". Junta os dois, tira duplicados e ruido de interface.
 aliados_extrai_nomes() {
+    _en_t=`cat`
     {
-        grep -o -E '/user/[0-9]+[^>]*>[^<]+<' | sed -E 's/^[^>]*>//; s/<$//'
-        grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}'
+        # Padrao antigo (o que lia 43 de 50): nome comecando em letra maiuscula.
+        printf '%s\n' "$_en_t" | grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}'
+        if [ "$1" != antigo ]; then
+            # Ampliado: qualquer nome entre "/>" e ", <s" (acentos, numeros, minusculas, _).
+            printf '%s\n' "$_en_t" | grep -o -E "[/]>[^<>,/]{2,30},[[:space:]]<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}'
+        fi
     } | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
-      | awk 'length($0) > 1 && $0 !~ /[\/=<>]/ && $0 !~ /^[0-9]+$/ && $0 !~ /^(Ver( perfil)?|perfil|Mensagem|Adicionar|Detalhes|Clã|Clan)$/ { gsub(/ /, "_"); print }' \
+      | awk 'length($0) > 1 && $0 !~ /[\/=<>]/ && $0 !~ /^[0-9]+$/ { gsub(/ /, "_"); print }' \
       | sort -u
 }
 
@@ -410,18 +415,35 @@ aliados_membros_cla() {   # $1 = cid   $2 = arquivo de saida
     _mc_perfis="$HOME/.twm/.mc_perfis.$$"
     : > "$_mc_perfis"
     : > "$2.raw"
+    : > "$2.raw_antigo"
+    _dbg="$HOME/.twm/aliados_debug_clan_$1.html"
+    _tam=""
     for _mp in 5 4 3 2 1; do
         _pg=`aliados_http "/clan/$1/$_mp"`
+        _tam="$_tam p$_mp=$(printf '%s' "$_pg" | wc -c | tr -d ' ')B"
         printf '%s' "$_pg" | grep -o -E '/user/[0-9]+' >> "$_mc_perfis"
         printf '%s\n' "$_pg" | aliados_extrai_nomes >> "$2.raw"
+        printf '%s\n' "$_pg" | aliados_extrai_nomes antigo >> "$2.raw_antigo"
+        [ "$_mp" = 1 ] && printf '%s' "$_pg" > "$_dbg"
     done
     sort -u "$2.raw" | grep -v '^$' > "$2"
-    rm -f "$2.raw"
+    _na=`sort -u "$2.raw_antigo" 2>/dev/null | grep -c .`
+    rm -f "$2.raw" "$2.raw_antigo"
     _np=`sort -u "$_mc_perfis" | grep -c .`
     _nn=`grep -c . "$2"`
-    printf 'perfis encontrados: %s | nomes lidos: %s\n' "$_np" "$_nn" > "$2.diag"
+    printf 'perfis encontrados: %s | nomes lidos: %s (padrao antigo: %s) |%s\n' "$_np" "$_nn" "$_na" "$_tam" > "$2.diag"
     rm -f "$_mc_perfis"
-    unset _mp _pg _np _nn _mc_perfis
+    # Se a leitura nao bateu, mostra trechos reais da pagina para ajuste
+    if [ "$_nn" -lt "$_np" ] || [ "$_np" -eq 0 ]; then
+        printf '  [diagnostico] %s\n' "`cat "$2.diag"`"
+        if [ ! -s "$_dbg" ] || grep -q -i -E 'login|entrar|senha' "$_dbg"; then
+            printf '  [diagnostico] a pagina veio vazia ou de login: a sessao (cookie.txt) pode ter expirado\n'
+        else
+            printf '  [diagnostico] trechos da pagina do cla (copie e me envie, sem dados pessoais):\n'
+            grep -n -m 4 -E '/user/|Ver|Membro' "$_dbg" | cut -c1-220 | sed 's/^/      /'
+        fi
+    fi
+    unset _mp _pg _np _nn _na _mc_perfis _dbg _tam
 }
 
 # ID do meu cla: primeiro cla que aparece na propria pagina /user

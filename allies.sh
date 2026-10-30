@@ -454,11 +454,16 @@ arena_fullmana() {
 # Nomes de membros a partir do HTML de uma pagina de cla (stdin). MESMA leitura
 # usada pelo setup.sh: texto do link de cada jogador, mais o padrao antigo.
 al_extrai_nomes() {
+    _en_t=`cat`
     {
-        grep -o -E '/user/[0-9]+[^>]*>[^<]+<' | sed -E 's/^[^>]*>//; s/<$//'
-        grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}'
+        # Padrao antigo (o que lia 43 de 50): nome comecando em letra maiuscula.
+        printf '%s\n' "$_en_t" | grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}'
+        if [ "$1" != antigo ]; then
+            # Ampliado: qualquer nome entre "/>" e ", <s" (acentos, numeros, minusculas, _).
+            printf '%s\n' "$_en_t" | grep -o -E "[/]>[^<>,/]{2,30},[[:space:]]<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}'
+        fi
     } | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
-      | awk 'length($0) > 1 && $0 !~ /[\/=<>]/ && $0 !~ /^[0-9]+$/ && $0 !~ /^(Ver( perfil)?|perfil|Mensagem|Adicionar|Detalhes|Clã|Clan)$/ { gsub(/ /, "_"); print }' \
+      | awk 'length($0) > 1 && $0 !~ /[\/=<>]/ && $0 !~ /^[0-9]+$/ { gsub(/ /, "_"); print }' \
       | sort -u
 }
 

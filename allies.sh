@@ -451,14 +451,25 @@ arena_fullmana() {
 # ---------------------------------------------------------------------------
 
 # al_members_clan <cid>: anexa os membros do cla em $TMP/allies_tmp.txt
+# Nomes de membros a partir do HTML de uma pagina de cla (stdin). MESMA leitura
+# usada pelo setup.sh: texto do link de cada jogador, mais o padrao antigo.
+al_extrai_nomes() {
+    {
+        grep -o -E '/user/[0-9]+[^>]*>[^<]+<' | sed -E 's/^[^>]*>//; s/<$//'
+        grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}'
+    } | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+      | awk 'length($0) > 1 && $0 !~ /[\/=<>]/ && $0 !~ /^[0-9]+$/ && $0 !~ /^(Ver( perfil)?|perfil|Mensagem|Adicionar|Detalhes|Clã|Clan)$/ { gsub(/ /, "_"); print }' \
+      | sort -u
+}
+
 al_members_clan() {
     [ -n "$1" ] || return 1
     _amc_out="${2:-$TMP/allies_tmp.txt}"
     for _aln in 5 4 3 2 1; do
-        run_curl_exec "${URL}/clan/$1/${_aln}" | grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}' | sed 's,\ ,_,' >> "$_amc_out"
+        run_curl_exec "${URL}/clan/$1/${_aln}" | al_extrai_nomes >> "$_amc_out"
         sleep 1
     done
-    unset _aln
+    unset _aln _amc_out
 }
 
 # al_lider <uid>: imprime "cid|nome_do_lider" lendo a pagina do usuario

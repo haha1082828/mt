@@ -530,8 +530,14 @@ al_apply() {
     : > "$TMP/callies_new.txt"
 
     if [ "$_am" = 5 ] || [ "$_am" = 7 ]; then
-        clan_id 2>/dev/null
-        [ -n "$CLD" ] && al_members_clan "$CLD"
+        [ -n "$CLD" ] || clan_id 2>/dev/null
+        if [ -n "$CLD" ]; then
+            al_members_clan "$CLD"
+        else
+            # Sem identificar o meu cla: NAO aplica (evita lista sem os meus membros)
+            printf "Aliados: nao consegui identificar o meu cla - tento de novo em 30 min\n"
+            return 1
+        fi
     fi
 
     if [ "$_am" = 6 ] || [ "$_am" = 7 ]; then

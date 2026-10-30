@@ -361,8 +361,9 @@ aliados_cookie_ref() {   # primeiro cookie.txt nao vazio entre as contas
 }
 
 aliados_http() {   # $1 = caminho (ex.: /user/123). Imprime o HTML, so leitura (-b, nao -c)
+    command -v curl >/dev/null 2>&1 || { printf '  [diagnostico] curl nao instalado: rode "sudo apt install curl"\n' >&2; return 1; }
     _h_ck=`aliados_cookie_ref`
-    [ -n "$_h_ck" ] || return 1
+    if [ -z "$_h_ck" ]; then printf '  [diagnostico] nenhuma conta tem cookie.txt: rode uma conta antes\n' >&2; return 1; fi
     curl -sS -L --compressed --max-time 30 --proto =https --proto-redir =https \
          -A "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36" \
          -b "$_h_ck" "https://$(server_url 1)$1" 2>/dev/null
@@ -453,7 +454,7 @@ aliados_membros_cla() {   # $1 = cid   $2 = arquivo de saida
     rm -f "$2.raw" "$2.raw_antigo" "$2.antigo" "$_mc_seen"
     printf 'perfis encontrados: %s | nomes lidos: %s (padrao antigo: %s)%s |%s\n' "$_np" "$_nn" "$_na" "$_ruido" "$_tam" > "$2.diag"
     if [ "$_np" -eq 0 ]; then
-        printf '  [diagnostico] a pagina veio sem nenhum perfil: sessao (cookie.txt) expirada ou cla errado\n'
+        printf '  [diagnostico] a pagina veio sem nenhum perfil: sessao (cookie.txt) expirada, cla errado, ou curl sem resposta\n'
     elif [ "$_nn" -lt "$_np" ]; then
         printf '  [diagnostico] %s\n' "`cat "$2.diag"`"
         printf '  [diagnostico] exemplos de membros NAO lidos (copie e me envie, trocando nomes por NOME):\n'

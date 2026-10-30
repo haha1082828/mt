@@ -456,18 +456,14 @@ arena_fullmana() {
 al_extrai_nomes() {
     _en_t=`cat | tr '\n\r' '  '`
     {
-        # Novo padrão: captura o texto isolado pela tag </a> do perfil /user/
-        printf '%s\n' "$_en_t" | grep -o -E "/user/[0-9]+[^>]*>[^<]+</a>" | awk -F'>' '{print $2}' | awk -F'<' '{print $1}'
+        printf '%s\n' "$_en_t" | grep -o -E "/user/[0-9]+[^>]*>[^<]+" | awk -F'>' '{print $NF}'
         
-        # Padrões antigos mantidos por segurança
         printf '%s\n' "$_en_t" | grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}'
-        if [ "$1" != antigo ]; then
-            printf '%s\n' "$_en_t" | grep -o -E "[>][^<>,/]{2,40}(<span[^>]*>[^<]{0,3}</span>){0,2},[[:space:]]*<" | sed -E 's/^[>]//; s/[<,].*$//'
-        fi
     } | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
       | awk 'length($0) > 1 && $0 !~ /[\/=<>]/ && $0 !~ /^[0-9]+$/ { gsub(/ /, "_"); print }' \
       | sort -u
 }
+
 
 al_members_clan() {
     [ -n "$1" ] || return 1

@@ -599,6 +599,7 @@ aliados_menu() {
         printf "\n a) adicionar clas (cole os links /clan/NUMERO)\n"
         printf " r) remover clas pelo numero (ex.: 2 ou 1,3)\n"
         printf " l) reler membros dos clas\n"
+        printf " p) reaplicar nas contas (use depois de cadastrar contas novas)\n"
         printf " m) trocar modo\n"
         printf " v) ver lista de aliados (paginada)\n"
         printf " 0) voltar\n\nEscolha: "
@@ -640,6 +641,12 @@ $_id" ;;
                 _ids=`printf '%s\n' "$_ids" | grep -E '^[0-9]+$' | sort -u`
                 aliados_gravar_central "$_al_mode" "$_ids"
                 printf "\nClas removidos. Aplicando nas contas...\n"
+                aliados_aplicar_contas
+                aliados_pausa
+                ;;
+
+            p|P)
+                printf "\nReaplicando em todas as contas...\n"
                 aliados_aplicar_contas
                 aliados_pausa
                 ;;

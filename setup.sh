@@ -458,7 +458,13 @@ aliados_membros_cla() {   # $1 = cid   $2 = arquivo de saida
     rm -f "$2.raw" "$2.raw_antigo" "$2.antigo" "$_mc_seen"
     printf 'membros lidos: %s de %s perfis%s\n' "$_nn" "$_np" "$_ruido" > "$2.diag"
     if [ "$_np" -eq 0 ]; then
-        printf '  ⚠️  pagina sem membros: sessao expirada, cla errado ou curl sem resposta\n'
+        _ck=`aliados_cookie_ref`
+        printf '  ⚠️  pagina sem membros. Causas comuns:\n'
+        printf '      1) sessao antiga: o cookie so renova com a conta rodando\n'
+        [ -n "$_ck" ] && printf '         cookie atualizado em: %s\n' "`date -r "$_ck" '+%d/%m %H:%M' 2>/dev/null || stat -c %y "$_ck" 2>/dev/null | cut -c1-16`"
+        printf '         -> rode uma conta (./play.sh) por alguns minutos e tente de novo\n'
+        printf '      2) link de cla errado ou curl sem resposta\n'
+        unset _ck
     elif [ "$_nn" -lt "$_np" ]; then
         printf '  ⚠️  %s\n' "`cat "$2.diag"`"
         printf '  Exemplos nao lidos (copie e me envie, trocando nomes por NOME):\n'

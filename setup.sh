@@ -484,7 +484,72 @@ aliados_reaplicar() {
     unset _ok
 }
 
-# [9] Ver, adicionar e remover lideres
+# [9] Ver, adicionar e remover lideres (com nome quando a conta ja leu)
+aliados_info_arquivo() {   # primeira conta que tem o arquivo de info dos lideres
+    _ai=""
+    while IFS='|' read -r _srv _usr _enc; do
+        case "$_srv" in ''|\#*) continue ;; esac
+        [ -z "$_usr" ] && continue
+        _t=$(server_tag "$_srv")
+        if [ -s "$HOME/.twm/${_t}_${_usr}/allies_lideres_info.txt" ]; then
+            _ai="$HOME/.twm/${_t}_${_usr}/allies_lideres_info.txt"
+            break
+        fi
+    done < "$ACCOUNTS_FILE"
+    printf '%s' "$_ai"
+    unset _srv _usr _enc _t _ai
+}
+
+# Mostra lista de aliados de uma conta, paginada (ENTER = proxima, q = sair)
+aliados_ver_lista() {
+    clear
+    printf "${GREEN}🐉 DRAGONS${RESET}  ${WHITE}VER LISTA DE ALIADOS${RESET}\n${DIM}────────────────────────────────────────────${RESET}\n\n"
+    _vl_n=0
+    while IFS='|' read -r _srv _usr _enc; do
+        case "$_srv" in ''|\#*) continue ;; esac
+        [ -z "$_usr" ] && continue
+        _vl_n=$((_vl_n + 1))
+        _t=$(server_tag "$_srv")
+        printf " %2d) %s %s\n" "$_vl_n" "$_t" "$_usr"
+    done < "$ACCOUNTS_FILE"
+    printf "\nNumero da conta (0 = voltar): "
+    read -r _vl_esc
+    case "$_vl_esc" in ''|0) return 0 ;; esac
+    _vl_dir=""; _vl_k=0
+    while IFS='|' read -r _srv _usr _enc; do
+        case "$_srv" in ''|\#*) continue ;; esac
+        [ -z "$_usr" ] && continue
+        _vl_k=$((_vl_k + 1))
+        if [ "$_vl_k" = "$_vl_esc" ]; then
+            _vl_dir="$HOME/.twm/$(server_tag "$_srv")_${_usr}"
+            _vl_nome="$_usr"
+        fi
+    done < "$ACCOUNTS_FILE"
+    _vl_f="$_vl_dir/allies_lista.txt"
+    if [ ! -s "$_vl_f" ]; then
+        printf "\nEssa conta ainda nao aplicou a lista. Deixe rodar uma volta e tente de novo.\n"
+        aliados_pausa; return 0
+    fi
+    _vl_total=`grep -c . "$_vl_f"`
+    _vl_pag=0
+    _vl_ini=1
+    while [ "$_vl_ini" -le "$_vl_total" ]; do
+        _vl_fim=$((_vl_ini + 24))
+        clear
+        printf "${WHITE}Aliados de %s${RESET}  (%s no total)\n\n" "$_vl_nome" "$_vl_total"
+        sed -n "${_vl_ini},${_vl_fim}p" "$_vl_f" | awk -v base="$_vl_ini" '{ gsub(/_/, " "); printf "%4d) %s\n", base + NR - 1, $0 }'
+        _vl_ini=$((_vl_fim + 1))
+        if [ "$_vl_ini" -le "$_vl_total" ]; then
+            printf "\nENTER = proxima pagina, q = sair: "
+            read -r _vl_op
+            case "$_vl_op" in q|Q) break ;; esac
+        fi
+    done
+    printf "\n"
+    aliados_pausa
+    unset _vl_n _vl_esc _vl_dir _vl_k _vl_nome _vl_f _vl_total _vl_ini _vl_fim _vl_op _srv _usr _enc _t
+}
+
 aliados_lideres() {
     while true; do
         clear
@@ -495,16 +560,26 @@ aliados_lideres() {
             return 0
         fi
         printf "Modo: %s  (5 = so meu cla, sem lideres)\n\n" "$_al_mode"
+        _info=`aliados_info_arquivo`
         _i=0
         for _id in $_al_ids; do
             _i=$((_i + 1))
-            printf " %2d) %s\n" "$_i" "$_id"
+            _linha=""
+            [ -n "$_info" ] && _linha=`grep "^$_id|" "$_info" | head -n1`
+            if [ -n "$_linha" ]; then
+                _nm=`printf '%s' "$_linha" | cut -d'|' -f2 | tr '_' ' '`
+                _cl=`printf '%s' "$_linha" | cut -d'|' -f3`
+                printf " %2d) %-10s %s  (cla %s)\n" "$_i" "$_id" "${_nm:-nome nao lido}" "${_cl:--}"
+            else
+                printf " %2d) %s  (nome ainda nao lido - aparece apos a conta rodar)\n" "$_i" "$_id"
+            fi
         done
         [ "$_i" -eq 0 ] && printf " (nenhum lider cadastrado)\n"
-        printf "\n a) adicionar lideres\n r) remover lider(es) pelo numero (ex.: 2 ou 1,3)\n 0) voltar\n\nEscolha: "
+        printf "\n a) adicionar lideres\n r) remover lider(es) pelo numero (ex.: 2 ou 1,3)\n v) ver lista de aliados de uma conta\n 0) voltar\n\nEscolha: "
         read -r _op
         case "$_op" in
             0|'') return 0 ;;
+            v|V) aliados_ver_lista ;;
             a|A)
                 printf "Cole os links ou IDs (linha vazia para terminar):\n"
                 _raw=""

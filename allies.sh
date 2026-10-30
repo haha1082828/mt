@@ -483,11 +483,13 @@ al_apply() {
     if [ "$_am" = 6 ] || [ "$_am" = 7 ]; then
         [ -n "$CLD" ] || clan_id 2>/dev/null
         _falhas=0
+        : > "$TWM_ACC_DIR/allies_lideres_info.txt" 2>/dev/null
         while IFS= read -r _uid; do
             case "$_uid" in ''|*[!0-9]*) continue ;; esac
             _r=`al_lider "$_uid"`
             _cid=${_r%%|*}
             _nome=${_r#*|}
+            printf '%s|%s|%s\n' "$_uid" "$_nome" "$_cid" >> "$TWM_ACC_DIR/allies_lideres_info.txt" 2>/dev/null
             # Lider do PROPRIO cla: nao e aliado. Ignorado (nao entra em callies).
             if [ -n "$CLD" ] && [ "$_cid" = "$CLD" ]; then
                 printf "Aliados: lider %s e do meu cla - ignorado\n" "$_uid"
@@ -547,6 +549,7 @@ al_apply_saved() {
         printf '%s|%s' "$_as_mode" "$_as_hoje" > "$TWM_ACC_DIR/allies_state" 2>/dev/null
         : > "$TMP/allies_ok"
         printf "Aliados ok: %s nomes\n" "$_as_n"
+        cp "$TMP/allies.txt" "$TWM_ACC_DIR/allies_lista.txt" 2>/dev/null
         unset _as_n
     else
         printf "Aliados: lista veio vazia - mantive a anterior, tento em 30 min\n"

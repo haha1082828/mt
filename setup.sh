@@ -578,6 +578,7 @@ aliados_menu() {
         [ "$_i" -eq 0 ] && printf " (nenhum cla aliado cadastrado)\n"
         printf "\n a) adicionar clas (cole os links /clan/NUMERO)\n"
         printf " r) remover clas pelo numero (ex.: 2 ou 1,3)\n"
+        printf " l) reler membros dos clas\n"
         printf " m) trocar modo\n"
         printf " v) ver lista de aliados (paginada)\n"
         printf " 0) voltar\n\nEscolha: "
@@ -623,6 +624,16 @@ $_id" ;;
                 aliados_pausa
                 ;;
 
+            l|L)
+                if [ -z "$_al_ids" ]; then
+                    printf "\nNenhum cla cadastrado.\n"
+                else
+                    printf "\nLendo os clas cadastrados:\n"
+                    aliados_ler_clas "$_al_ids"
+                fi
+                aliados_pausa
+                ;;
+
             m|M)
                 printf "  1- so meu cla    2- so clas aliados    3- os dois\nEscolha: "
                 read -r _nm
@@ -642,6 +653,17 @@ $_id" ;;
                     if [ -n "$_mc" ]; then
                         aliados_membros_cla "$_mc" "$HOME/.twm/aliados_meu_cla.txt"
                     fi
+                fi
+                # Clas ainda sem membros lidos: le agora
+                _vazios=""
+                for _id in $_al_ids; do
+                    [ -s "$HOME/.twm/aliados_membros_$_id.txt" ] || _vazios="$_vazios
+$_id"
+                done
+                _vazios=`printf '%s\n' "$_vazios" | grep -E '^[0-9]+$'`
+                if [ -n "$_vazios" ] && { [ "$_al_mode" = 6 ] || [ "$_al_mode" = 7 ]; }; then
+                    printf "\nLendo clas que ainda estavam vazios:\n"
+                    aliados_ler_clas "$_vazios"
                 fi
                 _lc=`aliados_lista_combinada`
                 if [ ! -s "$_lc" ]; then

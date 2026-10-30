@@ -6,10 +6,12 @@ members_allies() {
     echo "" > callies.txt
 
     if [ -n "$CLD" ]; then
-        printf "Updating clan members into allies\n"
+        printf "Updating clan members into allies
+"
 
         for num in `seq 5 -1 1`; do
-            printf "/clan/%s/%s\n" "$CLD" "$num"
+            printf "/clan/%s/%s
+" "$CLD" "$num"
             (
                 run_curl_exec "${URL}/clan/${CLD}/${num}" | grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}' | sed 's,\ ,_,' >> allies.txt
             ) </dev/null > /dev/null 2>&1 &
@@ -19,46 +21,56 @@ members_allies() {
         sort -u allies.txt -o allies.txt
     fi
 
-    printf "Allies for Coliseum and King of the Immortals:\n"
+    printf "Allies for Coliseum and King of the Immortals:
+"
     cat allies.txt
-    printf "Wait to continue.\n"
+    printf "Wait to continue.
+"
     sleep 2
 }
 
 id_allies() {
-    printf "Looking for allies on friends list\n"
+    printf "Looking for allies on friends list
+"
     cd "$TMP" || return 1
     : > "$TMP/tmp.txt"
-    printf "/mail/friends\n"
+    printf "/mail/friends
+"
 
     (
         run_curl_exec "${URL}/mail/friends" > "$TMP/SRC"
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
 
-    NPG=`cat "$TMP/SRC" | grep -o -E '/mail/friends/([0-9]{0,4})[^[:alnum:]]{4}62[^[:alnum:]]{3}62[^[:alnum:]]' | sed 's/\/mail\/friends\/\([0-9]\{0,4\}\).*/\1/'`
+    NPG=`cat "$TMP/SRC" | grep -o -E '/mail/friends/([0-9]{0,4})[^[:alnum:]]{4}62[^[:alnum:]]{3}62[^[:alnum:]]' | sed 's/\/mail\/friends\/\([0-9]\{0,4\}\).*//'`
 
     if [ -z "$NPG" ]; then
-        printf "/mail/friends\n"
+        printf "/mail/friends
+"
         (
-            run_curl_exec "${URL}/mail/friends" | sed 's,/user/,\n/user/,g' | grep '/user/' | grep '/mail/' | cut -d\< -f1 >> tmp.txt
+            run_curl_exec "${URL}/mail/friends" | sed 's,/user/,
+/user/,g' | grep '/user/' | grep '/mail/' | cut -d\< -f1 >> tmp.txt
         ) </dev/null > /dev/null 2>&1 &
         time_exit 17
     fi
 
-    NPG=`cat "$TMP/SRC" | grep -o -E '/mail/friends/([0-9]{0,4})[^[:alnum:]]{4}62[^[:alnum:]]{3}62[^[:alnum:]]' | sed 's/\/mail\/friends\/\([0-9]\{0,4\}\).*/\1/'`
+    NPG=`cat "$TMP/SRC" | grep -o -E '/mail/friends/([0-9]{0,4})[^[:alnum:]]{4}62[^[:alnum:]]{3}62[^[:alnum:]]' | sed 's/\/mail\/friends\/\([0-9]\{0,4\}\).*//'`
 
     if [ -z "$NPG" ]; then
-        printf "/mail/friends\n"
+        printf "/mail/friends
+"
         (
-            run_curl_exec "${URL}/mail/friends" | sed 's,/user/,\n/user/,g' | grep '/user/' | grep '/mail/' | cut -d\< -f1 >> tmp.txt
+            run_curl_exec "${URL}/mail/friends" | sed 's,/user/,
+/user/,g' | grep '/user/' | grep '/mail/' | cut -d\< -f1 >> tmp.txt
         ) </dev/null > /dev/null 2>&1 &
         time_exit 17
     else
         for num in `seq "$NPG" -1 1`; do
-            printf "Friends list page %s\n" "$num"
+            printf "Friends list page %s
+" "$num"
             (
-                run_curl_exec "${URL}/mail/friends/${num}" | sed 's,/user/,\n/user/,g' | grep '/user/' | grep '/mail/' | cut -d\< -f1 >> tmp.txt
+                run_curl_exec "${URL}/mail/friends/${num}" | sed 's,/user/,
+/user/,g' | grep '/user/' | grep '/mail/' | cut -d\< -f1 >> tmp.txt
             ) </dev/null > /dev/null 2>&1 &
             time_exit 17
         done
@@ -76,28 +88,33 @@ clan_allies() {
         echo "" > callies.txt
         cut -d/ -f3 tmp.txt > ids.txt
 
-        printf "Clan allies by Leader on friends list\n"
+        printf "Clan allies by Leader on friends list
+"
         Lnl=`wc -l < ids.txt`
         ts=0
 
         for num in `seq "$Lnl" -1 1`; do
             IDN=`sed -n "${num}p" ids.txt`
             if [ -n "$IDN" ]; then
-                printf "/user/%s\n" "$IDN"
+                printf "/user/%s
+" "$IDN"
                 (
                     run_curl_exec "${URL}/user/${IDN}" > "$TMP/SRC"
                 ) </dev/null > /dev/null 2>&1 &
                 time_exit 17
 
-                LEADPU=`sed 's,/clan/,\n/clan/,g' "$TMP/SRC" | grep -E "</a>, <span class='blue'|</a>, <span class='green'" | cut -d\< -f1 | cut -d\> -f2`
+                LEADPU=`sed 's,/clan/,
+/clan/,g' "$TMP/SRC" | grep -E "</a>, <span class='blue'|</a>, <span class='green'" | cut -d\< -f1 | cut -d\> -f2`
                 alCLAN=`grep -E -o '/clan/[0-9]{1,3}' "$TMP/SRC" | tail -n1`
 
-                printf "%s - %s\n" "$LEADPU" "$alCLAN"
+                printf "%s - %s
+" "$LEADPU" "$alCLAN"
 
                 if [ -n "$LEADPU" ]; then
                     ts=$((ts + 1))
                     echo "$LEADPU" | sed 's,\ ,_,' >> callies.txt
-                    printf "%s. Ally %s %s added.\n" "$ts" "$LEADPU" "$alCLAN"
+                    printf "%s. Ally %s %s added.
+" "$ts" "$LEADPU" "$alCLAN"
                     sort -u callies.txt -o callies.txt
                 fi
 
@@ -111,14 +128,20 @@ conf_allies() {
     cd "$TMP" || return 1
     [ -t 1 ] && clear
 
-    printf "The script will consider users on your friends list and Clan as allies.\n"
-    printf "1) Add/Update alliances (All Battles)\n"
-    printf "2) Add/Update just Herois alliances (Coliseum/King of immortals)\n"
-    printf "3) Add/Update just Clan alliances (Altars, Clan Coliseum and Clan Fight)\n"
-    printf "4) Do nothing\n"
+    printf "The script will consider users on your friends list and Clan as allies.
+"
+    printf "1) Add/Update alliances (All Battles)
+"
+    printf "2) Add/Update just Herois alliances (Coliseum/King of immortals)
+"
+    printf "3) Add/Update just Clan alliances (Altars, Clan Coliseum and Clan Fight)
+"
+    printf "4) Do nothing
+"
 
     AL=`get_config "ALLIES"`
-    printf "Current alliance configuration: %s\n" "$AL"
+    printf "Current alliance configuration: %s
+" "$AL"
 
     if [ -z "$AL" ]; then
         printf "Set up alliances [1 to 4]: "
@@ -131,12 +154,14 @@ conf_allies() {
                     break
                     ;;
                 *)
-                    printf "Invalid input. Please enter a value between 1 and 4:\n"
+                    printf "Invalid input. Please enter a value between 1 and 4:
+"
                     ;;
             esac
         done
     else
-        printf "Using existing alliance configuration: %s\n" "$AL"
+        printf "Using existing alliance configuration: %s
+" "$AL"
     fi
 
     case "$AL" in
@@ -144,14 +169,16 @@ conf_allies() {
             id_allies
             members_allies
             clan_allies
-            printf "Alliances on all battles active\n"
+            printf "Alliances on all battles active
+"
             ;;
         2)
             id_allies
             if [ -e "$TMP/callies.txt" ]; then
                 : > "$TMP/callies.txt"
             fi
-            printf "Just Herois alliances now.\n"
+            printf "Just Herois alliances now.
+"
             ;;
         3)
             id_allies
@@ -159,27 +186,26 @@ conf_allies() {
             if [ -e "$TMP/allies.txt" ]; then
                 : > "$TMP/allies.txt"
             fi
-            printf "Just Clan alliances now.\n"
+            printf "Just Clan alliances now.
+"
             ;;
         4)
-            printf "Nothing changed.\n"
+            printf "Nothing changed.
+"
             : >> "$TMP/allies.txt"
             : >> "$TMP/callies.txt"
             ;;
         *)
             [ -t 1 ] && clear
             if [ -n "$AL" ]; then
-                # CORRECAO: aqui era "kill -9 $$" — SIGKILL no proprio
-                # shell por causa de uma opcao de menu invalida. Num worker
-                # isso derruba a conta sem deixar rastro, e $$ e o PID do
-                # shell PRINCIPAL mesmo quando avaliado dentro de subshell,
-                # entao o estrago ia muito alem da funcao. Uma opcao
-                # invalida e para ser recusada, nao para matar o processo.
-                printf "Opcao invalida: %s — configuracao de aliados ignorada\n" "$AL"
-                printf "conf_allies: opcao invalida (%s)\n" "$AL" >> "$TMP/ERROR_DEBUG"
+                printf "Opcao invalida: %s — configuracao de aliados ignorada
+" "$AL"
+                printf "conf_allies: opcao invalida (%s)
+" "$AL" >> "$TMP/ERROR_DEBUG"
                 return 1
             else
-                printf "Time exceeded!\n" >> "$TMP/ERROR_DEBUG"
+                printf "Time exceeded!
+" >> "$TMP/ERROR_DEBUG"
             fi
             ;;
     esac
@@ -196,7 +222,6 @@ altars_fight() {
     local html="$TMP/src.html"
     [ -f "$html" ] || return 1
     
-    # Extrações consolidadas mantendo os mesmos destinos originais
     grep -o -E '(/[a-z]+/[a-z]{0,4}at[a-z]{0,3}k/?[?]r[=][0-9]+)' "$html" | sed -n 1p > ATK 2>/dev/null
     grep -o -E '(/[a-z]+/at[a-z]{0,3}k[a-z]{3,6}/?[?]r[=][0-9]+)' "$html" | sed -n 1p > ATKRND 2>/dev/null
     grep -o -E '(/altars/dodge/?[?]r[=][0-9]+)' "$html" | sed -n 1p > DODGE 2>/dev/null
@@ -219,10 +244,12 @@ altars_fight() {
 
     if grep -q -o '/dodge/' "$html"; then
       sessao_marcar
-      printf "Em batalha - HP: %s\n" "${ush:-0}"
+      printf "Em batalha - HP: %s
+" "${ush:-0}"
     else
       echo 1 > BREAK_LOOP
-      printf "Battle over!\n"
+      printf "Battle over!
+"
       sleep 2s
     fi
   }
@@ -238,9 +265,7 @@ altars_fight() {
   FIGHT_BREAK=$(($(date +%s) + 600))
   until [ -s "BREAK_LOOP" ] || [ "$(date +%s)" -gt "$FIGHT_BREAK" ]; do
     cf_access
-    if ! grep -q -o 'txt smpl grey' "$TMP/src.html" && \
-       ([ "$FIRST_DODGE" -eq 1 ] || { [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ]; }) && \
-       awk -v ush="$(cat HP)" -v oldhp="$(cat old_HP)" 'BEGIN { exit !(ush < oldhp) }'; then
+    if ! grep -q -o 'txt smpl grey' "$TMP/src.html" &&        ([ "$FIRST_DODGE" -eq 1 ] || { [ "$(($(date +%s) - $(cat last_dodge)))" -gt 20 ] && [ "$(($(date +%s) - $(cat last_dodge)))" -lt 300 ]; }) &&        awk -v ush="$(cat HP)" -v oldhp="$(cat old_HP)" 'BEGIN { exit !(ush < oldhp) }'; then
       (
         run_curl_exec "${URL}$(cat DODGE)" > "$TMP/src.html"
       ) </dev/null > /dev/null 2>&1 &
@@ -249,8 +274,7 @@ altars_fight() {
       cat HP > old_HP; date +%s > last_dodge
       FIRST_DODGE=0
 
-    elif awk -v ush="$(cat HP)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' && \
-         ([ "$FIRST_HEAL" -eq 1 ] || { [ "$(($(date +%s) - $(cat last_heal)))" -gt 90 ] && [ "$(($(date +%s) - $(cat last_heal)))" -lt 300 ]; }); then
+    elif awk -v ush="$(cat HP)" -v hlhp="$(cat HLHP)" 'BEGIN { exit !(ush < hlhp) }' &&          ([ "$FIRST_HEAL" -eq 1 ] || { [ "$(($(date +%s) - $(cat last_heal)))" -gt 90 ] && [ "$(($(date +%s) - $(cat last_heal)))" -lt 300 ]; }); then
       (
         run_curl_exec "${URL}$(cat HEAL)" > "$TMP/src.html"
       ) </dev/null > /dev/null 2>&1 &
@@ -260,12 +284,7 @@ altars_fight() {
       date +%s > last_heal
       FIRST_HEAL=0
 
-    elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk >= atktime) }' && \
-         ! grep -q -o 'txt smpl grey' "$TMP/src.html" && \
-         awk -v rhp="$(cat RHP)" -v enh="$(cat HP2)" 'BEGIN { exit !(rhp < enh) }' || \
-         awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk >= atktime) }' && \
-         ! grep -q -o 'txt smpl grey' "$TMP/src.html" && \
-         grep -q -o "$(cat CLAN)" "$TMP/callies.txt"; then
+    elif awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk >= atktime) }' &&          ! grep -q -o 'txt smpl grey' "$TMP/src.html" &&          awk -v rhp="$(cat RHP)" -v enh="$(cat HP2)" 'BEGIN { exit !(rhp < enh) }' ||          awk -v latk="$(($(date +%s) - $(cat last_atk)))" -v atktime="$LA" 'BEGIN { exit !(latk >= atktime) }' &&          ! grep -q -o 'txt smpl grey' "$TMP/src.html" &&          grep -q -o "$(cat CLAN)" "$TMP/callies.txt"; then
       (
         run_curl_exec "${URL}$(cat ATKRND)" > "$TMP/src.html"
       ) </dev/null > /dev/null 2>&1 &
@@ -293,7 +312,8 @@ altars_fight() {
   unset cf_access _random FIRST_DODGE FIRST_HEAL
   func_unset
   apply_event altars
-  printf "Altars ok\n"
+  printf "Altars ok
+"
   sleep 10s
   [ -t 1 ] && clear
 }
@@ -303,20 +323,27 @@ altars_start() {
   (13:5[5-9]|20:5[5-9])
     fetch_page "/altars/?close=reward" "$TMP/src.html"
     fetch_page "/altars/enterFight" "$TMP/src.html"
-    printf "Ancient Altars will be started...\n"
+    printf "Ancient Altars will be started...
+"
 
     until (case `date +%M` in (55|56|57|58|59) exit 1;; esac); do
       sleep 2
     done
 
     fetch_page "/altars/enterFight" "$TMP/src.html"
-    printf "Altars will be started...\n"
+    printf "Altars will be started...
+"
     link_acao "$TMP/src.html" altars > "$TMP/ACCESS" 2>/dev/null
-    printf " Entering...\n"
-    printf " Waiting...\n"
+    printf " Entering...
+"
+    printf " Waiting...
+"
     BREAK=$(($(date +%s) + 30))
     until grep -q -o 'altars/dodge/' "$TMP/ACCESS" || [ "$(date +%s)" -gt "$BREAK" ]; do
-      printf "%s\n ...\n%s\n" "$URL" "`cat "$TMP/ACCESS"`"
+      printf "%s
+ ...
+%s
+" "$URL" "`cat "$TMP/ACCESS"`"
       fetch_page "/altars" "$TMP/src.html"
       link_acao "$TMP/src.html" altars > "$TMP/ACCESS" 2>/dev/null
       sleep 3
@@ -325,7 +352,6 @@ altars_start() {
     ;;
   esac
 }
-# shellcheck disable=SC2148
 arena_fault() {
     (
         run_curl_exec "${URL}/fault" > "$TMP/SRC"
@@ -338,10 +364,12 @@ arena_fault() {
             run_curl_exec "${URL}${ACCESS}" > "$TMP/SRC"
         ) </dev/null > /dev/null 2>&1 &
         time_exit 17
-        printf "%s\n" "$ACCESS"
+        printf "%s
+" "$ACCESS"
         sleep 1s
     done
-    printf "fault (ok)\n"
+    printf "fault (ok)
+"
 }
 
 arena_collFight() {
@@ -350,25 +378,32 @@ arena_collFight() {
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
     if grep -q -o '/collfight/' "$TMP/SRC"; then
-        printf "collfight ...\n"
-        printf "/collfight/enterFight\n"
-        ACCESS=`cat "$TMP/SRC" | sed 's/href=/\n/g' | grep 'collfight/take' | head -n1 | awk -F\' '{ print $2 }'`
+        printf "collfight ...
+"
+        printf "/collfight/enterFight
+"
+        ACCESS=`cat "$TMP/SRC" | sed 's/href=/
+/g' | grep 'collfight/take' | head -n1 | awk -F' '{ print $2 }'`
         (
             run_curl_exec "${URL}${ACCESS}" > /dev/null
         ) </dev/null > /dev/null 2>&1 &
         time_exit 17
-        printf "%s\n" "$ACCESS"
+        printf "%s
+" "$ACCESS"
         (
             run_curl_exec "${URL}/collfight/enterFight" > /dev/null
         ) </dev/null > /dev/null 2>&1 &
         time_exit 17
-        printf "/collfight/enterFight\n"
-        printf "collfight (ok)\n"
+        printf "/collfight/enterFight
+"
+        printf "collfight (ok)
+"
     fi
 }
 
 arena_duel() {
-    printf "Arena\n"
+    printf "Arena
+"
 
     checkQuest 3 apply
     checkQuest 4 apply
@@ -378,92 +413,75 @@ arena_duel() {
     BREAK=$(($(date +%s) + 60))
     count=0
 
-    # CORRECAO: o laco era "until grep 'lab/wizard' ...". Em alguns estados a
-    # pagina da arena ja traz o link do Laboratorio do Mago e o laco terminava
-    # ANTES de atacar — a conta "ia na arena" mas nao golpeava (energia nao
-    # caia). Agora quem manda e a PRESENCA do link de ataque real (com nonce),
-    # slot generico [0-9]+ (nao fixo em /1/), dentro do teto de 60s.
     while [ "$(date +%s)" -lt "$BREAK" ]; do
-        # ALINHADO AO ORIGINAL: o alvo e o slot 1 (/arena/attack/1/), que e o
-        # que o original ataca sempre. O generico [0-9]+ fica so de reserva,
-        # para a pagina que por algum motivo nao ofereca o slot 1 — assim o
-        # comportamento e identico ao do original no caso normal, sem parar de
-        # golpear no caso incomum.
         ACCESS=`grep -o -E '/arena/attack/1/[?]r[=][0-9]+' "$TMP/SRC" | sed -n '1p'`
-        [ -n "$ACCESS" ] || \
-            ACCESS=`grep -o -E '/arena/attack/[0-9]+/[?]r[=][0-9]+' "$TMP/SRC" | sed -n '1p'`
+        [ -n "$ACCESS" ] ||             ACCESS=`grep -o -E '/arena/attack/[0-9]+/[?]r[=][0-9]+' "$TMP/SRC" | sed -n '1p'`
         if [ -z "$ACCESS" ]; then
-            printf "  Arena: sem ataque disponivel agora\n"
+            printf "  Arena: sem ataque disponivel agora
+"
             break
         fi
         fetch_page "$ACCESS"
         count=$((count + 1))
-        printf "  Attack %s\n" "$count"
+        printf "  Attack %s
+" "$count"
         sleep 0.6s
     done
 
     fetch_page "/inv/bag/"
     SELL=`grep -o -E '(/inv/bag/sellAll/1/[?]r[=][0-9]+)' "$TMP/SRC" | sed -n '1p'`
-    # CORRECAO: sem nada a vender o SELL fica vazio e o fetch_page ""
-    # requisitava a HOME — um pedido a toa por passagem na arena que ainda
-    # sobrescrevia $TMP/pagina, fazendo o painel (e a atividade que os outros
-    # jogadores veem) piscar "Pagina Principal" no meio da arena.
     if [ -n "$SELL" ]; then
         fetch_page "$SELL"
-        printf "Sell all items ok\n"
+        printf "Sell all items ok
+"
     else
-        printf "Nada a vender na mochila\n"
+        printf "Nada a vender na mochila
+"
     fi
 
     checkQuest 3 end
     checkQuest 4 end
 
-    printf "Arena ok\n"
+    printf "Arena ok
+"
 }
 
 arena_fullmana() {
-    printf "energy arena ...\n"
+    printf "energy arena ...
+"
     (
-        run_curl_exec "${URL}/arena/quit" | sed "s/href='/\n/g" | grep 'attack/1' | head -n1 | awk -F/ '{ print $5 }' | tr -cd '[:digit:]' > "$TMP/ARENA"
+        run_curl_exec "${URL}/arena/quit" | sed "s/href='/
+/g" | grep 'attack/1' | head -n1 | awk -F/ '{ print $5 }' | tr -cd '[:digit:]' > "$TMP/ARENA"
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
-    printf " - 1 Attack...\n"
+    printf " - 1 Attack...
+"
     (
-        run_curl_exec "${URL}/arena/attack/1/?r=`cat "$TMP/ARENA"`" | sed "s/href='/\n/g" | grep 'arena/lastPlayer' | head -n1 | awk -F\' '{ print $1 }' | tr -cd '[:digit:]' > "$TMP/ATK1"
+        run_curl_exec "${URL}/arena/attack/1/?r=`cat "$TMP/ARENA"`" | sed "s/href='/
+/g" | grep 'arena/lastPlayer' | head -n1 | awk -F' '{ print $1 }' | tr -cd '[:digit:]' > "$TMP/ATK1"
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
-    printf " - Full Attack...\n"
+    printf " - Full Attack...
+"
     (
         run_curl_exec "${URL}/arena/lastPlayer/?r=`cat "$TMP/ATK1"`&fullmana=true" > /dev/null
     ) </dev/null > /dev/null 2>&1 &
     time_exit 17
-    printf "Energy arena ok\n"
+    printf "Energy arena ok
+"
 }
 
-# ---------------------------------------------------------------------------
-# Aliados por lista (configurada no setup.sh, aplicada pela propria conta)
-#   ALLIES=5  so o cla da conta (membros)
-#   ALLIES=6  so os cla(s) dos lideres da lista
-#   ALLIES=7  os dois
-# Lista de IDs de CLAS aliados: $TWM_ACC_DIR/allies_clas.txt (um ID por linha)
-# Estado: $TWM_ACC_DIR/allies_state = "MODO|AAAAMMDD" (1x por dia)
-# Marcador por sessao: $TMP/allies_ok (TMP e RAM: some no reinicio e reaplica)
-# ---------------------------------------------------------------------------
-
-# al_members_clan <cid>: anexa os membros do cla em $TMP/allies_tmp.txt
-# Nomes de membros a partir do HTML de uma pagina de cla (stdin). MESMA leitura
-# usada pelo setup.sh: texto do link de cada jogador, mais o padrao antigo.
 al_extrai_nomes() {
-    _en_t=`cat | tr '\n\r' '  '`
+    _en_t=`cat | tr '
+' '  '`
     {
-        printf '%s\n' "$_en_t" | grep -o -E "/user/[0-9]+[^>]*>[^<]+" | awk -F'>' '{print $NF}'
+        printf '%s
+' "$_en_t" | grep -o -E "/user/[0-9]+[^>]*>[^<]+" | awk -F'>' '{print $NF}'
         
-        printf '%s\n' "$_en_t" | grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}'
-    } | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
-      | awk 'length($0) > 1 && $0 !~ /[\/=<>]/ && $0 !~ /^[0-9]+$/ { gsub(/ /, "_"); print }' \
-      | sort -u
+        printf '%s
+' "$_en_t" | grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}'
+    } | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'       | awk 'length($0) > 1 && $0 !~ /[\/=<>]/ && $0 !~ /^[0-9]+$/ { gsub(/ /, "_"); print }'       | sort -u
 }
-
 
 al_members_clan() {
     [ -n "$1" ] || return 1
@@ -476,19 +494,21 @@ al_members_clan() {
         _amc_novo=0
         for _amc_x in `printf '%s' "$_amc_pg" | grep -o -E '/user/[0-9]+' | sort -u`; do
             if ! grep -q -x -F "$_amc_x" "$_amc_seen"; then
-                printf '%s\n' "$_amc_x" >> "$_amc_seen"
+                printf '%s
+' "$_amc_x" >> "$_amc_seen"
                 _amc_novo=1
             fi
         done
         [ "$_amc_novo" -eq 1 ] || break
-        printf '%s\n' "$_amc_pg" | al_extrai_nomes >> "$_amc_out.raw"
-        printf '%s\n' "$_amc_pg" | al_extrai_nomes antigo >> "$_amc_out.raw_antigo"
+        printf '%s
+' "$_amc_pg" | al_extrai_nomes >> "$_amc_out.raw"
+        printf '%s
+' "$_amc_pg" | al_extrai_nomes antigo >> "$_amc_out.raw_antigo"
         _aln=$((_aln + 1))
         sleep 1
     done
     _amc_np=`grep -c . "$_amc_seen"`
     _amc_nn=`sort -u "$_amc_out.raw" | grep -c .`
-    # Mesmo teto de seguranca do setup: mais nomes que perfis = ruido, usa o padrao antigo.
     if [ "$_amc_np" -gt 0 ] && [ "$_amc_nn" -gt "$_amc_np" ]; then
         sort -u "$_amc_out.raw_antigo" | grep -v '^$' >> "$_amc_out"
     else
@@ -498,27 +518,25 @@ al_members_clan() {
     unset _aln _amc_out _amc_pg _amc_novo _amc_x _amc_np _amc_nn _amc_seen
 }
 
-# al_lider <uid>: imprime "cid|nome_do_lider" lendo a pagina do usuario
 al_lider() {
     run_curl_exec "${URL}/user/$1" > "$TMP/al_user.html" 2>/dev/null
-    # A pagina do lider traz varios links /clan/ID (menu, perfil...). O menu costuma
-    # apontar para o cla de quem esta logado (o meu). Entao: pega o primeiro ID que
-    # NAO seja o meu cla. Se so existir o meu, o lider e do meu cla.
     _al_ids=`grep -E -o '/clan/[0-9]{1,3}' "$TMP/al_user.html" | cut -d/ -f3`
     _alc=""
     for _al_c in $_al_ids; do
         if [ -n "$CLD" ] && [ "$_al_c" = "$CLD" ]; then continue; fi
         _alc="$_al_c"; break
     done
-    if [ -z "$_alc" ] && [ -n "$CLD" ] && printf '%s\n' "$_al_ids" | grep -q -x "$CLD"; then
+    if [ -z "$_alc" ] && [ -n "$CLD" ] && printf '%s
+' "$_al_ids" | grep -q -x "$CLD"; then
         _alc="$CLD"
     fi
-    _aln=`sed 's,/clan/,\n/clan/,g' "$TMP/al_user.html" | grep -E "</a>, <span class='blue'|</a>, <span class='green'" | cut -d\< -f1 | cut -d\> -f2 | sed 's,\ ,_,' | head -n1`
-    printf '%s|%s\n' "$_alc" "$_aln"
+    _aln=`sed 's,/clan/,
+/clan/,g' "$TMP/al_user.html" | grep -E "</a>, <span class='blue'|</a>, <span class='green'" | cut -d\< -f1 | cut -d\> -f2 | sed 's,\ ,_,' | head -n1`
+    printf '%s|%s
+' "$_alc" "$_aln"
     unset _alc _aln _al_ids _al_c
 }
 
-# al_apply <modo>: monta allies.txt e callies.txt. Nao sobrescreve se vier vazio.
 al_apply() {
     _am="$1"
     : > "$TMP/allies_tmp.txt"
@@ -536,7 +554,8 @@ al_apply() {
         while IFS= read -r _cid; do
             case "$_cid" in ''|*[!0-9]*) continue ;; esac
             if [ -n "$CLD" ] && [ "$_cid" = "$CLD" ]; then
-                printf "Aliados: cla %s e o meu - ignorado\n" "$_cid"
+                printf "Aliados: cla %s e o meu - ignorado
+" "$_cid"
                 continue
             fi
             _nclas=$((_nclas + 1))
@@ -544,19 +563,18 @@ al_apply() {
             al_members_clan "$_cid" "$TMP/al_cla_$_cid.txt"
             if [ -s "$TMP/al_cla_$_cid.txt" ]; then
                 cat "$TMP/al_cla_$_cid.txt" >> "$TMP/allies_tmp.txt"
-                printf "Aliados: cla %s - %s membros\n" "$_cid" "`grep -c . "$TMP/al_cla_$_cid.txt"`"
+                printf "Aliados: cla %s - %s membros
+" "$_cid" "`grep -c . "$TMP/al_cla_$_cid.txt"`"
             else
                 _falhas=$((_falhas + 1))
-                printf "Aliados: cla %s sem membros lidos (falha?)\n" "$_cid"
+                printf "Aliados: cla %s sem membros lidos (falha?)
+" "$_cid"
             fi
         done < "$TWM_ACC_DIR/allies_clas.txt"
         unset _nclas
     fi
 
     _novos=`sort -u "$TMP/allies_tmp.txt" | grep -v '^$'`
-    # Modo 6 sem nenhum cla aliado valido (lista vazia ou so o meu cla): zera.
-    # e resultado legitimo: zera. Se alguma pagina falhou (_falhas>0), mantem.
-    # Nos demais casos, lista vazia pode ser falha de rede: nao sobrescreve.
     if [ -z "$_novos" ]; then
         if [ "$_am" = 6 ] && [ "${_falhas:-0}" -eq 0 ] && [ "${_nclas:-0}" -eq 0 ]; then
             : > "$TMP/allies.txt"
@@ -565,14 +583,13 @@ al_apply() {
         fi
         return 1
     fi
-    printf '%s\n' "$_novos" > "$TMP/allies.txt"
+    printf '%s
+' "$_novos" > "$TMP/allies.txt"
     sort -u "$TMP/callies_new.txt" | grep -v '^$' > "$TMP/callies.txt"
     unset _novos _uid _r _cid _nome
     return 0
 }
 
-# al_apply_saved: chamada pelo loop (tarefas_livres). Nao faz nada se nao houver
-# modo 5/6/7 configurado, ou se ja aplicou hoje nesta sessao.
 al_apply_saved() {
     [ -n "$TWM_ACC_DIR" ] && [ -d "$TWM_ACC_DIR" ] && [ -n "$TMP" ] || return 0
     _as_mode=`grep -E '^ALLIES=' "$TWM_ACC_DIR/config.cfg" 2>/dev/null | tail -n1 | cut -d= -f2`
@@ -594,16 +611,19 @@ al_apply_saved() {
     fi
     printf '%s' "$_as_agora" > "$TWM_ACC_DIR/allies_try" 2>/dev/null
 
-    printf "Aliados: aplicando modo %s\n" "$_as_mode"
+    printf "Aliados: aplicando modo %s
+" "$_as_mode"
     if al_apply "$_as_mode"; then
         _as_n=`wc -l < "$TMP/allies.txt" | tr -d ' '`
         printf '%s|%s' "$_as_mode" "$_as_hoje" > "$TWM_ACC_DIR/allies_state" 2>/dev/null
         : > "$TMP/allies_ok"
-        printf "Aliados ok: %s nomes\n" "$_as_n"
+        printf "Aliados ok: %s nomes
+" "$_as_n"
         cp "$TMP/allies.txt" "$TWM_ACC_DIR/allies_lista.txt" 2>/dev/null
         unset _as_n
     else
-        printf "Aliados: lista veio vazia - mantive a anterior, tento em 30 min\n"
+        printf "Aliados: lista veio vazia - mantive a anterior, tento em 30 min
+"
     fi
     unset _as_mode _as_hoje _as_est _as_agora _as_try
     return 0

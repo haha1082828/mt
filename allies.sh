@@ -460,9 +460,10 @@ al_extrai_nomes() {
         # Padrao antigo (lia 41 de 50): "/>Nome, <s" com nome em maiuscula.
         printf '%s\n' "$_en_t" | grep -o -E "[/]>([[:upper:]][[:lower:]]{0,15}[[:space:]]{0,1}[[:upper:]]{0,1}[[:lower:]]{0,14},[[:space:]])<s" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}'
         if [ "$1" != antigo ]; then
-            # Ampliado: qualquer nome entre um ">" e ", <tag" (sem exigir "/>" nem "<s",
-            # aceita acento, numero, minuscula, "_" e espacos/quebras antes da tag).
-            printf '%s\n' "$_en_t" | grep -o -E "[>][^<>,/]{2,40},[[:space:]]*<" | awk -F"[>]" '{print $2}' | awk -F"[,]" '{print $1}'
+            # Ampliado: nome entre um ">" e ", <tag", aceitando ate 2 marcadores curtos
+            # <span ...>'</span> entre o nome e a virgula (ex.: class='not_here'), acento,
+            # numero, minuscula, "_" e quebras de linha.
+            printf '%s\n' "$_en_t" | grep -o -E "[>][^<>,/]{2,40}(<span[^>]*>[^<]{0,3}</span>){0,2},[[:space:]]*<" | sed -E 's/^[>]//; s/[<,].*$//'
         fi
     } | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
       | awk 'length($0) > 1 && $0 !~ /[\/=<>]/ && $0 !~ /^[0-9]+$/ { gsub(/ /, "_"); print }' \

@@ -397,6 +397,12 @@ aliados_extrai_clas() {
 # Nomes de membros a partir do HTML de uma pagina de cla (stdin).
 # Usa o TEXTO do link de cada jogador (/user/ID ... >NOME<) e, como reforco,
 # o padrao antigo "Nome, <s". Junta os dois, tira duplicados e ruido de interface.
+aliados_so_membros() {
+    # Mantem so os blocos <li> de membro: tem /user/ID e NAO tem /chat/ (o chat do cla
+    # tambem traz links /user/ID, mas fora de <li>, e nao sao membros).
+    tr '\n\r' '  ' | sed 's,<li[^>]*>,\n&,g; s,</li>,&\n,g' | grep '^<li' | grep '/user/' | grep -v '/chat/'
+}
+
 aliados_extrai_nomes() {
     # Achata quebras de linha: um nome que quebra de linha tambem e lido.
     _en_t=`cat | tr '\n\r' '  '`
@@ -416,27 +422,26 @@ aliados_extrai_nomes() {
 
 # Le as 5 paginas do cla. Grava nomes em $2 e diagnostico em $2.diag.
 aliados_membros_cla() {   # $1 = cid   $2 = arquivo de saida
-    # Le as paginas do cla (1,2,3...) e PARA sozinho quando uma pagina nao traz
-    # nenhum perfil novo: serve para cla de 1, 30 ou 50 membros.
+    # Le as paginas do cla (1,2,3...) so com os MEMBROS (ignora chat) e para sozinho
+    # quando uma pagina nao traz perfil novo. Serve para cla de 1, 30 ou 50 membros.
     _mc_seen="$HOME/.twm/.mc_seen.$$"
     _dbg="$HOME/.twm/aliados_debug_clan_$1.html"
     : > "$_mc_seen"; : > "$2.raw"; : > "$2.raw_antigo"; : > "$_dbg"
     _mp=1
-    _tam=""
     while [ "$_mp" -le 8 ]; do
         _pg=`aliados_http "/clan/$1/$_mp"`
+        _mem=`printf '%s\n' "$_pg" | aliados_so_membros`
         _novo=0
-        for _x in `printf '%s' "$_pg" | grep -o -E '/user/[0-9]+' | sort -u`; do
+        for _x in `printf '%s\n' "$_mem" | grep -o -E '/user/[0-9]+' | sort -u`; do
             if ! grep -q -x -F "$_x" "$_mc_seen"; then
                 printf '%s\n' "$_x" >> "$_mc_seen"
                 _novo=1
             fi
         done
         [ "$_novo" -eq 1 ] || break
-        _tam="$_tam p$_mp=$(printf '%s' "$_pg" | wc -c | tr -d ' ')B"
-        printf '%s\n' "$_pg" >> "$_dbg"
-        printf '%s\n' "$_pg" | aliados_extrai_nomes >> "$2.raw"
-        printf '%s\n' "$_pg" | aliados_extrai_nomes antigo >> "$2.raw_antigo"
+        printf '%s\n' "$_mem" >> "$_dbg"
+        printf '%s\n' "$_mem" | aliados_extrai_nomes >> "$2.raw"
+        printf '%s\n' "$_mem" | aliados_extrai_nomes antigo >> "$2.raw_antigo"
         _mp=$((_mp + 1))
     done
     _np=`grep -c . "$_mc_seen"`
@@ -445,26 +450,25 @@ aliados_membros_cla() {   # $1 = cid   $2 = arquivo de saida
     _na=`grep -c . "$2.antigo"`
     _nn=`grep -c . "$2"`
     _ruido=""
-    # Teto de seguranca: mais nomes que perfis indica texto que nao e nome.
     if [ "$_np" -gt 0 ] && [ "$_nn" -gt "$_np" ]; then
         cp "$2.antigo" "$2"
         _nn=$_na
-        _ruido=" [leitura ampliada descartada: tinha mais nomes que perfis]"
+        _ruido=" (leitura ampliada descartada)"
     fi
     rm -f "$2.raw" "$2.raw_antigo" "$2.antigo" "$_mc_seen"
-    printf 'perfis encontrados: %s | nomes lidos: %s (padrao antigo: %s)%s |%s\n' "$_np" "$_nn" "$_na" "$_ruido" "$_tam" > "$2.diag"
+    printf 'membros lidos: %s de %s perfis%s\n' "$_nn" "$_np" "$_ruido" > "$2.diag"
     if [ "$_np" -eq 0 ]; then
-        printf '  [diagnostico] a pagina veio sem nenhum perfil: sessao (cookie.txt) expirada, cla errado, ou curl sem resposta\n'
+        printf '  ⚠️  pagina sem membros: sessao expirada, cla errado ou curl sem resposta\n'
     elif [ "$_nn" -lt "$_np" ]; then
-        printf '  [diagnostico] %s\n' "`cat "$2.diag"`"
-        printf '  [diagnostico] exemplos de membros NAO lidos (copie e me envie, trocando nomes por NOME):\n'
+        printf '  ⚠️  %s\n' "`cat "$2.diag"`"
+        printf '  Exemplos nao lidos (copie e me envie, trocando nomes por NOME):\n'
         tr '\n\r' '  ' < "$_dbg" | sed 's,/user/,\n/user/,g' | grep '^/user/' | while IFS= read -r _ch; do
             if ! printf '%s\n' "$_ch" | aliados_extrai_nomes | grep -q .; then
-                printf '%s\n' "$_ch" | cut -c1-240 | sed 's/^/      /'
+                printf '%s\n' "$_ch" | cut -c1-200 | sed 's/^/      /'
             fi
         done | head -n 3
     fi
-    unset _mp _pg _np _nn _na _tam _mc_seen _dbg _novo _x _ruido _ch
+    unset _mp _pg _mem _np _nn _na _mc_seen _dbg _novo _x _ruido _ch
 }
 
 # ID do meu cla: primeiro cla que aparece na propria pagina /user
@@ -522,11 +526,11 @@ aliados_paginar() {
     while [ "$_pg_ini" -le "$_pg_total" ]; do
         _pg_fim=$((_pg_ini + 24))
         clear
-        printf "${WHITE}%s${RESET}  (%s no total)\n\n" "$_pg_t" "$_pg_total"
+        printf "${WHITE}%s${RESET}  👥 %s no total\n\n" "$_pg_t" "$_pg_total"
         sed -n "${_pg_ini},${_pg_fim}p" "$_pg_f" | awk -v base="$_pg_ini" '{ gsub(/_/, " "); printf "%4d) %s\n", base + NR - 1, $0 }'
         _pg_ini=$((_pg_fim + 1))
         if [ "$_pg_ini" -le "$_pg_total" ]; then
-            printf "\nENTER = proxima pagina, q = sair: "
+            printf "\n▶️  ENTER = próxima página   ·   q = sair: "
             read -r _pg_op
             case "$_pg_op" in q|Q) break ;; esac
         fi
@@ -555,19 +559,20 @@ aliados_lista_combinada() {
 # Le os clas adicionados (e meu cla, se for o caso) e grava a lista.
 aliados_ler_clas() {   # $1 = IDs a ler (um por linha)
     for _nid in $1; do
-        printf "  cla %s: lendo membros... " "$_nid"
+        printf "  ⚔️  cla %s: lendo membros... " "$_nid"
         aliados_membros_cla "$_nid" "$HOME/.twm/aliados_membros_$_nid.txt"
-        printf "%s membros  (%s)\n" "`grep -c . "$HOME/.twm/aliados_membros_$_nid.txt"`" "`cat "$HOME/.twm/aliados_membros_$_nid.txt.diag"`"
+        printf "✅ %s membros  (%s)\n" "`grep -c . "$HOME/.twm/aliados_membros_$_nid.txt"`" "`cat "$HOME/.twm/aliados_membros_$_nid.txt.diag" 2>/dev/null`"
     done
 }
 
 aliados_menu() {
     while true; do
         clear
-        printf "${GREEN}🐉 DRAGONS${RESET}  ${WHITE}ALIADOS${RESET}\n${DIM}────────────────────────────────────────────${RESET}\n\n"
+        printf "${GREEN}🐉 DRAGONS${RESET}  ${WHITE}⚔️  ALIADOS${RESET}\n"
+        printf "${DIM}╭──────────────────────────────────────────╮${RESET}\n"
         if ! aliados_ler_central; then
-            printf "Nenhuma configuracao ainda. Escolha o modo para comecar:\n"
-            printf "  1- So meu cla    2- So clas aliados    3- Os dois\n"
+            printf "  Nenhuma configuracao ainda. Escolha o modo:\n\n"
+            printf "   1️⃣  🛡️  So meu cla\n   2️⃣  ⚔️  So clas aliados\n   3️⃣  🤝 Os dois\n\n"
             printf "Escolha (0 = voltar): "
             read -r _m
             case "$_m" in
@@ -580,54 +585,56 @@ aliados_menu() {
             continue
         fi
         case "$_al_mode" in
-            5) _md="so meu cla" ;;
-            6) _md="so clas aliados" ;;
-            7) _md="meu cla + clas aliados" ;;
+            5) _md="🛡️  So meu cla" ;;
+            6) _md="⚔️  So clas aliados" ;;
+            7) _md="🤝 Meu cla + clas aliados" ;;
             *) _md="?" ;;
         esac
-        printf "Modo atual: %s\n\n" "$_md"
+        printf "  Modo: ${WHITE}%s${RESET}\n" "$_md"
+        printf "${DIM}╰──────────────────────────────────────────╯${RESET}\n\n"
         _i=0
         for _id in $_al_ids; do
             _i=$((_i + 1))
             _mf="$HOME/.twm/aliados_membros_$_id.txt"
             if [ -s "$_mf" ]; then
-                printf " %2d) cla %-10s %s membros   (%s)\n" "$_i" "$_id" "`grep -c . "$_mf"`" "`cat "$_mf.diag" 2>/dev/null`"
+                printf "  %2d) ⚔️  cla %-8s 👥 %s membros  ✅\n" "$_i" "$_id" "`grep -c . "$_mf"`"
             else
-                printf " %2d) cla %-10s (membros ainda nao lidos)\n" "$_i" "$_id"
+                printf "  %2d) ⚔️  cla %-8s ❓ ainda nao lido\n" "$_i" "$_id"
             fi
         done
-        [ "$_i" -eq 0 ] && printf " (nenhum cla aliado cadastrado)\n"
-        printf "\n a) adicionar clas (cole os links /clan/NUMERO)\n"
-        printf " r) remover clas pelo numero (ex.: 2 ou 1,3)\n"
-        printf " l) reler membros dos clas\n"
-        printf " p) reaplicar nas contas (use depois de cadastrar contas novas)\n"
-        printf " m) trocar modo\n"
-        printf " v) ver lista de aliados (paginada)\n"
-        printf " 0) voltar\n\nEscolha: "
+        [ "$_i" -eq 0 ] && printf "  (nenhum clã aliado cadastrado)\n"
+        printf "\n  ➕ a  adicionar clãs (links /clan/NUMERO)\n"
+        printf "  ➖ r  remover clãs pelo número (ex.: 2 ou 1,3)\n"
+        printf "  🔄 l  reler membros dos clãs\n"
+        printf "  📤 p  reaplicar nas contas (após cadastrar contas novas)\n"
+        printf "  🔀 m  trocar modo\n"
+        printf "  👀 v  ver lista de aliados\n"
+        printf "  ↩️  0  voltar\n\n"
+        printf "Escolha: "
         read -r _op
         case "$_op" in
             0|'') return 0 ;;
 
             a|A)
-                printf "Cole os links dos clas (um por linha ou separados por espaco). Linha vazia para terminar:\n"
+                printf "Cole os links dos clãs (um por linha ou separados por espaço). Linha vazia para terminar:\n"
                 _raw=""
                 while IFS= read -r _l; do [ -z "$_l" ] && break; _raw="$_raw $_l"; done
                 _novos=`printf '%s\n' "$_raw" | aliados_extrai_clas`
                 if [ -z "$_novos" ]; then
-                    printf "Nenhum link de cla valido (use /clan/NUMERO). Nada mudou.\n"
+                    printf "❌ Nenhum link de clã válido (use /clan/NÚMERO). Nada mudou.\n"
                     aliados_pausa; continue
                 fi
                 _ids=`printf '%s\n%s\n' "$_al_ids" "$_novos" | grep -E '^[0-9]+$' | sort -u`
                 aliados_gravar_central "$_al_mode" "$_ids"
-                printf "\nLendo os clas novos:\n"
+                printf "\n🔎 Lendo os clãs novos:\n"
                 aliados_ler_clas "$_novos"
-                printf "\nAplicando nas contas...\n"
+                printf "\n📤 Aplicando nas contas...\n"
                 aliados_aplicar_contas
                 aliados_pausa
                 ;;
 
             r|R)
-                printf "Numero(s) para remover: "
+                printf "Número(s) para remover: "
                 read -r _nums
                 _ids=""
                 _i=0
@@ -641,48 +648,44 @@ $_id" ;;
                 done
                 _ids=`printf '%s\n' "$_ids" | grep -E '^[0-9]+$' | sort -u`
                 aliados_gravar_central "$_al_mode" "$_ids"
-                printf "\nClas removidos. Aplicando nas contas...\n"
-                aliados_aplicar_contas
-                aliados_pausa
-                ;;
-
-            p|P)
-                printf "\nReaplicando em todas as contas...\n"
+                printf "\n🗑️  Clãs removidos. 📤 Aplicando nas contas...\n"
                 aliados_aplicar_contas
                 aliados_pausa
                 ;;
 
             l|L)
                 if [ -z "$_al_ids" ]; then
-                    printf "\nNenhum cla cadastrado.\n"
+                    printf "\n❌ Nenhum clã cadastrado.\n"
                 else
-                    printf "\nLendo os clas cadastrados:\n"
+                    printf "\n🔎 Relendo os clãs cadastrados:\n"
                     aliados_ler_clas "$_al_ids"
                 fi
                 aliados_pausa
                 ;;
 
+            p|P)
+                printf "\n📤 Reaplicando em todas as contas...\n"
+                aliados_aplicar_contas
+                aliados_pausa
+                ;;
+
             m|M)
-                printf "  1- so meu cla    2- so clas aliados    3- os dois\nEscolha: "
+                printf "  1️⃣  🛡️  só meu clã    2️⃣  ⚔️  só clãs aliados    3️⃣  🤝 os dois\nEscolha: "
                 read -r _nm
                 case "$_nm" in
                     1) _novo=5 ;; 2) _novo=6 ;; 3) _novo=7 ;; *) continue ;;
                 esac
                 aliados_gravar_central "$_novo" "$_al_ids"
-                printf "\nModo trocado. Aplicando nas contas...\n"
+                printf "\n🔀 Modo trocado. 📤 Aplicando nas contas...\n"
                 aliados_aplicar_contas
                 aliados_pausa
                 ;;
 
             v|V)
-                # Se o modo inclui o meu cla, guarda a lista dele antes de mostrar
                 if [ "$_al_mode" = 5 ] || [ "$_al_mode" = 7 ]; then
                     _mc=`aliados_meu_cla`
-                    if [ -n "$_mc" ]; then
-                        aliados_membros_cla "$_mc" "$HOME/.twm/aliados_meu_cla.txt"
-                    fi
+                    [ -n "$_mc" ] && aliados_membros_cla "$_mc" "$HOME/.twm/aliados_meu_cla.txt" >/dev/null
                 fi
-                # Clas ainda sem membros lidos: le agora
                 _vazios=""
                 for _id in $_al_ids; do
                     [ -s "$HOME/.twm/aliados_membros_$_id.txt" ] || _vazios="$_vazios
@@ -690,15 +693,15 @@ $_id"
                 done
                 _vazios=`printf '%s\n' "$_vazios" | grep -E '^[0-9]+$'`
                 if [ -n "$_vazios" ] && { [ "$_al_mode" = 6 ] || [ "$_al_mode" = 7 ]; }; then
-                    printf "\nLendo clas que ainda estavam vazios:\n"
+                    printf "\n🔎 Lendo clãs que ainda estavam vazios:\n"
                     aliados_ler_clas "$_vazios"
                 fi
                 _lc=`aliados_lista_combinada`
                 if [ ! -s "$_lc" ]; then
-                    printf "\nAinda nao ha nomes. Adicione um cla ou verifique a sessao.\n"
+                    printf "\n❌ Ainda não há nomes. Adicione um clã ou verifique a sessão.\n"
                     aliados_pausa
                 else
-                    aliados_paginar "$_lc" "Lista de aliados (combinada)"
+                    aliados_paginar "$_lc" "👀 Lista de aliados"
                     printf "\n"; aliados_pausa
                 fi
                 ;;

@@ -529,62 +529,182 @@ al_lider() {
     unset _alc _aln _al_ids _al_c
 }
 
-# al_apply <modo>: monta allies.txt e callies.txt. Nao sobrescreve se vier vazio.
+# al_clan_nome <cid>: imprime o nome normalizado do cla.
+# callies.txt e consumido pelas batalhas de cla comparando o nome do cla
+# encontrado na pagina de combate. Portanto, ele precisa guardar o nome
+# normalizado do cla, e nao o ID nem o nome do lider.
+al_clan_nome() {
+    [ -n "$1" ] || return 1
+    _acn_cid="$1"
+    _acn_html="$TMP/al_clan_${_acn_cid}.html"
+
+    run_curl_exec "${URL}/clan/${_acn_cid}/1" > "$_acn_html" 2>/dev/null || {
+        rm -f "$_acn_html"
+        return 1
+    }
+
+    [ -s "$_acn_html" ] || {
+        rm -f "$_acn_html"
+        return 1
+    }
+
+    # O href restringe a leitura ao cla solicitado; o texto do <a> e o nome.
+    _acn_nome=`grep -o -E "<a[^>]*/clan/${_acn_cid}[^>]*>[^<]*</a>" "$_acn_html" 2>/dev/null |
+        sed -E 's/^[^>]*>//; s/<\/a>.*//' |
+        sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/ /_/g' |
+        grep -v '^$' | head -n1`
+
+    # Fallback alinhado ao mesmo formato de CLAN usado nas batalhas.
+    if [ -z "$_acn_nome" ]; then
+        _acn_nome=`grep -o -E '([[:upper:]][[:lower:]]{0,20}( [[:upper:]][[:lower:]]{0,17})?)[[:space:]]\(' "$_acn_html" 2>/dev/null |
+            sed -E '1s/[[:space:]]+\($//;1s/ /_/g'`
+    fi
+
+    rm -f "$_acn_html"
+
+    case "$_acn_nome" in
+        ''|*[\/=]*|*'<'*|*'>'*) unset _acn_cid _acn_html _acn_nome; return 1 ;;
+    esac
+
+    printf '%s\n' "$_acn_nome"
+    unset _acn_cid _acn_html _acn_nome
+    return 0
+}
+
+# al_apply <modo>: monta allies.txt e callies.txt.
+# So publica as listas depois de validar todas as fontes obrigatorias.
 al_apply() {
     _am="$1"
-    : > "$TMP/allies_tmp.txt"
-    : > "$TMP/callies_new.txt"
+    _al_tmp="$TMP/allies_tmp.txt"
+    _cl_tmp="$TMP/callies_new.txt"
+    : > "$_al_tmp"
+    : > "$_cl_tmp"
 
+    _falhas=0
+    _nclas=0
+
+    # Modo 5/7: membros do meu cla + nome do meu cla.
     if [ "$_am" = 5 ] || [ "$_am" = 7 ]; then
         [ -n "$CLD" ] || clan_id 2>/dev/null
         if [ -n "$CLD" ]; then
-            al_members_clan "$CLD"
+            : > "$TMP/al_meu_cla.txt"
+            al_members_clan "$CLD" "$TMP/al_meu_cla.txt"
+            if [ -s "$TMP/al_meu_cla.txt" ]; then
+                cat "$TMP/al_meu_cla.txt" >> "$_al_tmp"
+            else
+                printf "Aliados: nao consegui ler os membros do meu cla - mantendo a lista anterior\n"
+                rm -f "$TMP/al_meu_cla.txt"
+                unset _am _al_tmp _cl_tmp _falhas _nclas
+                return 1
+            fi
+
+            _acn_nome=`al_clan_nome "$CLD"`
+            if [ -n "$_acn_nome" ]; then
+                printf '%s\n' "$_acn_nome" >> "$_cl_tmp"
+            else
+                printf "Aliados: nao consegui identificar o nome do meu cla - mantendo a lista anterior\n"
+                rm -f "$TMP/al_meu_cla.txt"
+                unset _am _al_tmp _cl_tmp _falhas _nclas _acn_nome
+                return 1
+            fi
+            rm -f "$TMP/al_meu_cla.txt"
         else
-            # Sem identificar o meu cla: NAO aplica (evita lista sem os meus membros)
             printf "Aliados: nao consegui identificar o meu cla - tento de novo em 30 min\n"
+            unset _am _al_tmp _cl_tmp _falhas _nclas
             return 1
         fi
     fi
 
+    # Modo 6/7: membros + nomes dos clas configurados em allies_clas.txt.
     if [ "$_am" = 6 ] || [ "$_am" = 7 ]; then
-        [ -n "$CLD" ] || clan_id 2>/dev/null
-        _falhas=0
-        _nclas=0
-        while IFS= read -r _cid; do
-            case "$_cid" in ''|*[!0-9]*) continue ;; esac
-            if [ -n "$CLD" ] && [ "$_cid" = "$CLD" ]; then
-                printf "Aliados: cla %s e o meu - ignorado\n" "$_cid"
-                continue
+        if [ ! -f "$TWM_ACC_DIR/allies_clas.txt" ]; then
+            if [ "$_am" = 6 ]; then
+                : > "$TMP/allies.txt"
+                : > "$TMP/callies.txt"
+                unset _am _al_tmp _cl_tmp _falhas _nclas
+                return 0
             fi
-            _nclas=$((_nclas + 1))
-            : > "$TMP/al_cla_$_cid.txt"
-            al_members_clan "$_cid" "$TMP/al_cla_$_cid.txt"
-            if [ -s "$TMP/al_cla_$_cid.txt" ]; then
-                cat "$TMP/al_cla_$_cid.txt" >> "$TMP/allies_tmp.txt"
+        else
+            while IFS= read -r _cid; do
+                case "$_cid" in ''|*[!0-9]*) continue ;; esac
+
+                if [ -n "$CLD" ] && [ "$_cid" = "$CLD" ]; then
+                    printf "Aliados: cla %s e o meu - ignorado\n" "$_cid"
+                    continue
+                fi
+
+                _nclas=$((_nclas + 1))
+                : > "$TMP/al_cla_$_cid.txt"
+
+                if ! al_members_clan "$_cid" "$TMP/al_cla_$_cid.txt" || [ ! -s "$TMP/al_cla_$_cid.txt" ]; then
+                    _falhas=$((_falhas + 1))
+                    printf "Aliados: cla %s sem membros lidos (falha?)\n" "$_cid"
+                    rm -f "$TMP/al_cla_$_cid.txt"
+                    continue
+                fi
+
+                cat "$TMP/al_cla_$_cid.txt" >> "$_al_tmp"
                 printf "Aliados: cla %s - %s membros\n" "$_cid" "`grep -c . "$TMP/al_cla_$_cid.txt"`"
-            else
-                _falhas=$((_falhas + 1))
-                printf "Aliados: cla %s sem membros lidos (falha?)\n" "$_cid"
-            fi
-        done < "$TWM_ACC_DIR/allies_clas.txt"
-        unset _nclas
+
+                _acn_nome=`al_clan_nome "$_cid"`
+                if [ -n "$_acn_nome" ]; then
+                    printf '%s\n' "$_acn_nome" >> "$_cl_tmp"
+                else
+                    _falhas=$((_falhas + 1))
+                    printf "Aliados: cla %s sem nome de cla lido (falha?)\n" "$_cid"
+                fi
+                rm -f "$TMP/al_cla_$_cid.txt"
+            done < "$TWM_ACC_DIR/allies_clas.txt"
+        fi
     fi
 
-    _novos=`sort -u "$TMP/allies_tmp.txt" | grep -v '^$'`
-    # Modo 6 sem nenhum cla aliado valido (lista vazia ou so o meu cla): zera.
-    # e resultado legitimo: zera. Se alguma pagina falhou (_falhas>0), mantem.
-    # Nos demais casos, lista vazia pode ser falha de rede: nao sobrescreve.
-    if [ -z "$_novos" ]; then
-        if [ "$_am" = 6 ] && [ "${_falhas:-0}" -eq 0 ] && [ "${_nclas:-0}" -eq 0 ]; then
-            : > "$TMP/allies.txt"
-            : > "$TMP/callies.txt"
-            return 0
-        fi
+    _novos=`sort -u "$_al_tmp" 2>/dev/null | grep -v '^$'`
+    _clans=`sort -u "$_cl_tmp" 2>/dev/null | grep -v '^$'`
+
+    # Nunca publica uma lista parcial quando alguma fonte obrigatoria falhou.
+    if [ "${_falhas:-0}" -gt 0 ]; then
+        printf "Aliados: houve falha ao ler uma fonte - mantendo a lista anterior\n"
+        unset _am _al_tmp _cl_tmp _falhas _nclas _novos _clans _acn_nome _cid
         return 1
     fi
-    printf '%s\n' "$_novos" > "$TMP/allies.txt"
-    sort -u "$TMP/callies_new.txt" | grep -v '^$' > "$TMP/callies.txt"
-    unset _novos _uid _r _cid _nome
+
+    # Modo 6 sem nenhum cla aliado configurado: zerar e confirmar.
+    if [ "$_am" = 6 ] && [ -z "$_novos" ] && [ "${_nclas:-0}" -eq 0 ]; then
+        : > "$TMP/allies.txt"
+        : > "$TMP/callies.txt"
+        unset _am _al_tmp _cl_tmp _falhas _nclas _novos _clans _acn_nome _cid
+        return 0
+    fi
+
+    # Qualquer modo que deveria produzir membros nao confirma sucesso vazio.
+    if [ -z "$_novos" ]; then
+        printf "Aliados: lista de membros vazia - mantendo a anterior\n"
+        unset _am _al_tmp _cl_tmp _falhas _nclas _novos _clans _acn_nome _cid
+        return 1
+    fi
+
+    # Em modo 5/7, callies e obrigatorio para as batalhas de cla.
+    if { [ "$_am" = 5 ] || [ "$_am" = 7 ]; } && [ -z "$_clans" ]; then
+        printf "Aliados: lista de clas vazia - mantendo a anterior\n"
+        unset _am _al_tmp _cl_tmp _falhas _nclas _novos _clans _acn_nome _cid
+        return 1
+    fi
+
+    # Em modo 6, cada cla configurado precisa ter produzido nome.
+    if [ "$_am" = 6 ] && [ "${_nclas:-0}" -gt 0 ] && [ -z "$_clans" ]; then
+        printf "Aliados: nenhum nome de cla valido - mantendo a anterior\n"
+        unset _am _al_tmp _cl_tmp _falhas _nclas _novos _clans _acn_nome _cid
+        return 1
+    fi
+
+    printf '%s\n' "$_novos" > "$TMP/allies.new"
+    printf '%s\n' "$_clans" > "$TMP/callies.new"
+
+    # Publicacao final somente apos todas as validacoes.
+    mv -f "$TMP/allies.new" "$TMP/allies.txt"
+    mv -f "$TMP/callies.new" "$TMP/callies.txt"
+
+    unset _am _al_tmp _cl_tmp _falhas _nclas _novos _clans _acn_nome _cid
     return 0
 }
 

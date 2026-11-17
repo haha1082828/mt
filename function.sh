@@ -187,7 +187,7 @@ FUNC_stats_min=3
 FUNC_clan_statue=y
 FUNC_cave_boost=y
 SCRIPT_PAUSED=n
-ALLIES=y
+ALLIES=
 EOF
 }
 

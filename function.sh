@@ -172,10 +172,10 @@ FUNC_clan_fight=y
 FUNC_collect_mission_rewards=y
 FUNC_pause_weekends=n
 FUNC_auto_events=y
-FUNC_clan_missions=y
-FUNC_clan_quests=y
-FUNC_clan_help=y
-FUNC_quest_force_gold=y
+FUNC_clan_missions=n
+FUNC_clan_quests=n
+FUNC_clan_help=n
+FUNC_quest_force_gold=n
 FUNC_quest_gold_min=1200
 FUNC_arena_min=30
 FUNC_cq_min=15
@@ -187,7 +187,7 @@ FUNC_stats_min=3
 FUNC_clan_statue=y
 FUNC_cave_boost=y
 SCRIPT_PAUSED=n
-ALLIES=
+ALLIES=y
 EOF
 }
 

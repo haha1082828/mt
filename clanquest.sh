@@ -42,7 +42,7 @@ cq_pagina() {
 # Devolve 0 se tomou alguma (a atividade vale a pena agora).
 cq_tomar() {
     _tipo="$1"
-    [ "${FUNC_clan_quests:-y}" = "y" ] || return 1
+    [ "${FUNC_clan_missions:-y}" = "y" ] || return 1
     cq_pagina || return 1
 
     _tomou=1
@@ -61,7 +61,7 @@ cq_tomar() {
 # cq_concluir
 # Recolhe as missoes ja concluidas.
 cq_concluir() {
-    [ "${FUNC_clan_quests:-y}" = "y" ] || return 1
+    [ "${FUNC_clan_missions:-y}" = "y" ] || return 1
     cq_pagina || return 1
     _n=0
     for _id in 1 2 3 4 5 6 7 8; do

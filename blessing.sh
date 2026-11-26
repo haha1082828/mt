@@ -28,26 +28,31 @@ blessing_registrar_bloqueio() {
 
 # Bencao: no maximo UMA compra a cada 72 horas (259200 s).
 # Respeita FUNC_use_blessing e FUNC_blessing_gold_min do function.sh.
+_bl_log() {
+    printf '%s|%s\n' "$(date '+%d/%m %H:%M:%S')" "$1" >> "$TMP/blessing.log" 2>/dev/null
+}
+
 use_blessing() {
     load_config
-    [ "${FUNC_use_blessing:-n}" = "y" ] || return 3
+    [ "${FUNC_use_blessing:-n}" = "y" ] || { _bl_log "desligada (FUNC_use_blessing=${FUNC_use_blessing:-vazio})"; return 3; }
 
     _bl_agora=`date +%s`
     _bl_ult=`cat "$TMP/last_blessing" 2>/dev/null`
     case "$_bl_ult" in ''|*[!0-9]*) _bl_ult=0 ;; esac
-    [ $((_bl_agora - _bl_ult)) -ge 259200 ] || { unset _bl_agora _bl_ult; return 3; }
+    [ $((_bl_agora - _bl_ult)) -ge 259200 ] || { _bl_log "aguardando 72h"; unset _bl_agora _bl_ult; return 3; }
 
     # Falhou ou nao havia link: so tenta de novo em 30 min.
     _bl_try=`cat "$TMP/last_blessing_try" 2>/dev/null`
     case "$_bl_try" in ''|*[!0-9]*) _bl_try=0 ;; esac
-    [ $((_bl_agora - _bl_try)) -ge 1800 ] || { unset _bl_agora _bl_ult _bl_try; return 3; }
+    [ $((_bl_agora - _bl_try)) -ge 1800 ] || { _bl_log "aguardando 30min da ultima tentativa"; unset _bl_agora _bl_ult _bl_try; return 3; }
     printf '%s' "$_bl_agora" > "$TMP/last_blessing_try" 2>/dev/null
 
     fetch_page "/effshop/" "$TMP/EFFSHOP"
-    [ -s "$TMP/EFFSHOP" ] || { unset _bl_agora _bl_ult _bl_try; return 1; }
+    [ -s "$TMP/EFFSHOP" ] || { _bl_log "pagina /effshop/ vazia"; unset _bl_agora _bl_ult _bl_try; return 1; }
 
     _bl_cl=`grep -o -E "/effshop/blessing/[?]r=[0-9]+" "$TMP/EFFSHOP" | sed -n 1p`
     if [ -z "$_bl_cl" ]; then
+        _bl_log "link da bencao nao encontrado na loja"
         unset _bl_agora _bl_ult _bl_try _bl_cl
         return 1
     fi
@@ -57,11 +62,12 @@ use_blessing() {
     case "$_bl_ouro" in ''|*[!0-9]*) _bl_ouro=0 ;; esac
     if [ "$_bl_ouro" -lt "${FUNC_blessing_gold_min:-0}" ]; then
         printf "Bencao: ouro insuficiente (%s)\n" "$_bl_ouro"
+        _bl_log "ouro insuficiente ($_bl_ouro)"
         unset _bl_agora _bl_ult _bl_try _bl_cl _bl_ouro
         return 1
     fi
 
-    resource_allow gold "${FUNC_blessing_gold_min:-0}" blessing || { unset _bl_agora _bl_ult _bl_try _bl_cl _bl_ouro; return 1; }
+    resource_allow gold "${FUNC_blessing_gold_min:-0}" blessing || { _bl_log "negada pelo resource_guard"; unset _bl_agora _bl_ult _bl_try _bl_cl _bl_ouro; return 1; }
 
     # Marca ANTES de comprar: mesmo que a requisicao demore, caia ou o bot
     # seja reiniciado no meio, nao existe segunda compra dentro de 72h.
@@ -70,6 +76,7 @@ use_blessing() {
     fetch_page "$_bl_cl"
     BLESSING_ALLOW=0
     printf "Bencao comprada (proxima em 72h)\n"
+    _bl_log "comprada"
     unset _bl_agora _bl_ult _bl_try _bl_cl _bl_ouro
     return 0
 }

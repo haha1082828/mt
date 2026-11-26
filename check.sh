@@ -64,6 +64,7 @@ apply_event() {
 }
 
 use_elixir() {
+    load_config
     if [ "$FUNC_use_elixir" = "n" ]; then
         return
     fi

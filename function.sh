@@ -192,10 +192,10 @@ FUNC_collect_mission_rewards=y
 FUNC_pause_weekends=n
 FUNC_auto_events=y
 FUNC_clan_missions=y
-FUNC_clan_quests=y
+FUNC_clan_quests=n
 FUNC_clan_help=y
 FUNC_quest_force_gold=y
-FUNC_quest_gold_min=300
+FUNC_quest_gold_min=1200
 FUNC_arena_min=30
 FUNC_cq_min=15
 FUNC_masmorra=y
@@ -227,6 +227,26 @@ EOF
 load_config() {
     CONFIG_FILE="${TMP:-.}/config.cfg"
     [ -f "$CONFIG_FILE" ] || : > "$CONFIG_FILE"
+
+    # Opcoes de missao: o valor escrito em config_defaults (lido AO VIVO do
+    # function.sh) vence o config.cfg sempre que voce o altera la.
+    _fsrc="${TWMDIR:-.}/function.sh"
+    _seen="${TMP:-.}/defaults_seen.cfg"
+    [ -f "$_seen" ] || : > "$_seen"
+    for _mk in FUNC_clan_missions FUNC_clan_help FUNC_quest_force_gold FUNC_quest_gold_min FUNC_cq_min; do
+        _mv=`sed -n '/^config_defaults()/,/^EOF/p' "$_fsrc" 2>/dev/null | grep "^${_mk}=" | head -n1 | cut -d= -f2-`
+        [ -n "$_mv" ] || continue
+        _ms=`grep "^${_mk}=" "$_seen" | head -n1 | cut -d= -f2-`
+        if [ "$_mv" != "$_ms" ]; then
+            grep -v "^${_mk}=" "$CONFIG_FILE" > "${CONFIG_FILE}.tmp" 2>/dev/null
+            mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
+            printf '%s=%s\n' "$_mk" "$_mv" >> "$CONFIG_FILE"
+            grep -v "^${_mk}=" "$_seen" > "${_seen}.tmp" 2>/dev/null
+            mv "${_seen}.tmp" "$_seen"
+            printf '%s=%s\n' "$_mk" "$_mv" >> "$_seen"
+        fi
+    done
+    unset _mk _mv _ms _fsrc _seen
 
     config_defaults | while IFS='=' read -r _dk _dv; do
         [ -n "$_dk" ] || continue

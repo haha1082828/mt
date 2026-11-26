@@ -691,7 +691,7 @@ start() {
 
     # Batalhas sempre com elixir e bencao
     cq_antes elixir 2>/dev/null
-    use_elixir
+    # Elixir: aplicado so ANTES de cada batalha/evento (run.sh), nao aqui.
     use_blessing 2>/dev/null
 
     campaign_func

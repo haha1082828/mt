@@ -179,9 +179,9 @@ request_update() {
 config_defaults() {
     cat <<'EOF'
 FUNC_check_rewards=y
-FUNC_use_elixir=y
-FUNC_use_blessing=y
-FUNC_blessing_gold_min=100
+FUNC_use_elixir=n
+FUNC_use_blessing=n
+FUNC_blessing_gold_min=0
 FUNC_trade=y
 FUNC_trade_dias=1
 FUNC_coliseum=y
@@ -192,10 +192,10 @@ FUNC_collect_mission_rewards=y
 FUNC_pause_weekends=n
 FUNC_auto_events=y
 FUNC_clan_missions=y
-FUNC_clan_quests=y
+FUNC_clan_quests=n
 FUNC_clan_help=y
 FUNC_quest_force_gold=y
-FUNC_quest_gold_min=300
+FUNC_quest_gold_min=1200
 FUNC_arena_min=30
 FUNC_cq_min=15
 FUNC_masmorra=y

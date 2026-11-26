@@ -42,6 +42,7 @@ cq_pagina() {
 # Devolve 0 se tomou alguma (a atividade vale a pena agora).
 cq_tomar() {
     _tipo="$1"
+    load_config
     [ "${FUNC_clan_missions:-y}" = "y" ] || return 1
     cq_pagina || return 1
 
@@ -61,6 +62,7 @@ cq_tomar() {
 # cq_concluir
 # Recolhe as missoes ja concluidas.
 cq_concluir() {
+    load_config
     [ "${FUNC_clan_missions:-y}" = "y" ] || return 1
     cq_pagina || return 1
     _n=0
@@ -80,6 +82,7 @@ cq_concluir() {
 # Apoia missoes de companheiros que estejam perto de concluir.
 # O gasto de ouro em ajuda e limitado a UMA vez por ciclo.
 cq_ajudar() {
+    load_config
     [ "${FUNC_clan_help:-y}" = "y" ] || return 1
     cq_pagina || return 1
 
@@ -104,12 +107,12 @@ cq_ajudar() {
 # Missao parada com ouro suficiente: conclui pagando.
 # O limite vem de FUNC_quest_gold_min (padrao 1200).
 cq_forcar_ouro() {
-    # Concluir missao do cla pagando ouro e gasto de OURO, e a politica
-    # nega qualquer gasto de ouro. A funcao continua existindo para nao
-    # quebrar quem a chama, mas a tentativa para aqui e fica no ledger.
+    load_config
+    [ "${FUNC_clan_missions:-y}" = "y" ] || return 1
+    [ "${FUNC_quest_force_gold:-n}" = "y" ] || return 1
+    # Politica de ouro: so libera quando FUNC_quest_force_gold=y.
     resource_allow gold "${FUNC_quest_gold_min:-1200}" quest_force_gold || return 1
 
-    [ "${FUNC_quest_force_gold:-y}" = "y" ] || return 1
     _min=${FUNC_quest_gold_min:-1200}
     case "$_min" in ''|*[!0-9]*) _min=1200 ;; esac
 

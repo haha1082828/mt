@@ -40,6 +40,8 @@ request_update() {
         printf " A- Complete clan missions. Current: %s\n" "$FUNC_clan_missions"
         printf " B- Enable clan statue automatically. Current: %s\n" "$FUNC_clan_statue"
         printf " C- Use gold to collect 3 ores in the cave. Current: %s\n" "$FUNC_cave_boost"
+        printf " E- Force Gold clan mission. Current: %s\n" "$FUNC_quest_force_gold"
+        printf " F- Minimum Gold to force clan mission. Current: %s\n" "$FUNC_quest_gold_min"
         printf " Press ENTER to exit.\n"
 
         read -r key
@@ -116,6 +118,23 @@ request_update() {
                 printf "Use gold to collect 3 ores in the cave? (y or n): "
                 key="FUNC_cave_boost"
                 ;;
+            e|E)
+                printf "Force Gold clan mission? (y or n): "
+                key="FUNC_quest_force_gold"
+                ;;
+            f|F)
+                printf "Minimum Gold to force a clan mission (number): "
+                while true; do
+                    read -r value
+                    case "$value" in
+                        ''|*[!0-9]*) printf "Invalid input. Enter a number: " ;;
+                        *) break ;;
+                    esac
+                done
+                set_config "FUNC_quest_gold_min" "$value"
+                load_config
+                continue
+                ;;
                 d|D)
                     # A Bencao esta bloqueada por politica (nao se gasta
                     # ouro). A opcao continua no menu para nao mudar as
@@ -172,10 +191,10 @@ FUNC_clan_fight=y
 FUNC_collect_mission_rewards=y
 FUNC_pause_weekends=n
 FUNC_auto_events=y
-FUNC_clan_missions=y
-FUNC_clan_quests=y
-FUNC_clan_help=y
-FUNC_quest_force_gold=y
+FUNC_clan_missions=n
+FUNC_clan_quests=n
+FUNC_clan_help=n
+FUNC_quest_force_gold=n
 FUNC_quest_gold_min=1200
 FUNC_arena_min=30
 FUNC_cq_min=15
@@ -214,14 +233,6 @@ load_config() {
         grep -q "^${_dk}=" "$CONFIG_FILE" 2>/dev/null || \
             printf '%s=%s\n' "$_dk" "$_dv" >> "$CONFIG_FILE"
     done
-
-    # Migracao unica: config.cfg antigo ja tem FUNC_clan_missions=n /
-    # FUNC_clan_quests=n gravados e os padroes acima nao os sobrescrevem.
-    if [ ! -f "${TMP:-.}/cq_cfg_fix" ]; then
-        grep -v -E '^FUNC_clan_(missions|quests)=' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" 2>/dev/null
-        printf 'FUNC_clan_missions=y\nFUNC_clan_quests=y\n' >> "$CONFIG_FILE.tmp"
-        mv "$CONFIG_FILE.tmp" "$CONFIG_FILE" 2>/dev/null && : > "${TMP:-.}/cq_cfg_fix"
-    fi
 
     while IFS='=' read -r _ck _cv; do
         case "$_ck" in

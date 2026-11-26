@@ -68,8 +68,8 @@ use_elixir() {
         return
     fi
 
-    # Uma aplicacao por janela (padrao 5h = menor intervalo entre as batalhas
-    # em vale). Marca ANTES de usar: reinicio ou falha nao geram segunda leva.
+    # Uma aplicacao a cada 5h. Marca ANTES de usar: reinicio ou falha nao
+    # geram segunda leva.
     _el_h=${FUNC_elixir_horas:-5}
     case "$_el_h" in ''|*[!0-9]*) _el_h=5 ;; esac
     _el_agora=`date +%s`

@@ -13,6 +13,11 @@ resource_allow() {
 
     # Barreira de ouro: bloqueia qualquer gasto de ouro
     if [ "$_rr" = "gold" ] || [ "$_rr" = "ouro" ]; then
+        if [ "$_rw" = "blessing" ] && [ "${FUNC_use_blessing:-n}" = "y" ]; then
+            resource_log "$_rr" "$_ra" "$_rw" permitido
+            unset _rr _ra _rw
+            return 0
+        fi
         if [ "$_rw" = "quest_force_gold" ] && [ "${FUNC_quest_force_gold:-n}" = "y" ]; then
             resource_log "$_rr" "$_ra" "$_rw" permitido
             unset _rr _ra _rw

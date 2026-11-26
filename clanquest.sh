@@ -83,12 +83,14 @@ cq_concluir() {
 # O gasto de ouro em ajuda e limitado a UMA vez por ciclo.
 cq_ajudar() {
     load_config
-    [ "${FUNC_clan_help:-y}" = "y" ] || return 1
+    [ "${FUNC_clan_missions:-y}" = "y" ] || return 1
     cq_pagina || return 1
+    # Registra as acoes que a pagina oferece (diagnostico).
+    grep -o -E "/clan/${CLD}/quest/[A-Za-z]+/[0-9]+" "$TMP/CQUEST" | awk -F/ '{print $5}' | sort -u > "$TMP/cq_actions" 2>/dev/null
 
     _usou_ouro=0
     for _id in 1 2 3 4 5 6 7 8; do
-        _cl=`grep -o -E "/clan/${CLD}/quest/help/${_id}/?[?]r=[0-9]+" "$TMP/CQUEST" | sed -n 1p`
+        _cl=`grep -o -E "/clan/${CLD}/quest/(help|assist|support|aid)[A-Za-z]*/${_id}/?[?]r=[0-9]+" "$TMP/CQUEST" | sed -n 1p`
         [ -n "$_cl" ] || continue
 
         # Links de ajuda que cobram ouro trazem confirmacao de custo.
@@ -121,11 +123,12 @@ cq_forcar_ouro() {
     # Saldo da conta e sempre alt='g'; alt='Ouro' e a recompensa da missao.
     _ouro=`grep -o -E "gold\.png' alt='g'/> ?[0-9][0-9.,']{0,14}[KMBkmb]?" "$TMP/CQUEST" | sed -E "s@.*/> ?@@" | head -n1`
     _ouro=`valor_num "$_ouro"`
+    case "$_ouro" in ''|*[!0-9]*) _ouro=`grep -o -E "gold\.png' alt='g'/> ?[0-9][0-9.,']*[KMBkmb]?" "$TMP/CQUEST" | sed -E "s@.*/> ?@@" | head -n1`; _ouro=`valor_num "$_ouro"` ;; esac
     case "$_ouro" in ''|*[!0-9]*) return 1 ;; esac
     [ "$_ouro" -gt "$_min" ] || return 1
 
     for _id in 1 2 3 4 5 6 7 8; do
-        _cl=`grep -o -E "/clan/${CLD}/quest/(finish|complete|endGold|forGold)/${_id}/?[?]r=[0-9]+" "$TMP/CQUEST" | sed -n 1p`
+        _cl=`grep -o -E "/clan/${CLD}/quest/(finish|complete|end[A-Za-z]+|for[A-Za-z]*|gold[A-Za-z]*|buy|speed[A-Za-z]*|instant[A-Za-z]*|pay[A-Za-z]*)/${_id}/?[?]r=[0-9]+" "$TMP/CQUEST" | sed -n 1p`
         if [ -n "$_cl" ]; then
             fetch_page "$_cl"
             printf "Missao do cla concluida com ouro (#%s, ouro %s)\n" "$_id" "$_ouro"

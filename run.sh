@@ -12,7 +12,7 @@ twm_play() {
 
     # Elixir: aplicado 10 minutos ANTES de cada batalha/evento (Torneio,
     # Altares, Vale, Rei, Coliseu do Cla e Bandeiras). Nao vale para o
-    # Coliseu comum. A trava de 5h fica dentro do use_elixir.
+    # Coliseu comum. A trava de 4h fica dentro do use_elixir.
     case `date +%H:%M` in
         (09:5[0-4]|10:5[0-4]|13:5[0-4]|14:5[0-4]|15:5[0-4]|18:5[0-4]|20:5[0-4]|21:5[0-4]|10:2[0-4]|12:2[0-4]|16:2[0-4]|22:2[0-4]|10:0[0-4]|16:0[0-4])
             use_elixir 2>/dev/null

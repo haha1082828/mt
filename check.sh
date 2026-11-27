@@ -69,14 +69,14 @@ use_elixir() {
         return
     fi
 
-    # Uma aplicacao a cada 4h. Marca ANTES de usar: reinicio ou falha nao
-    # geram segunda leva.
-    _el_h=${FUNC_elixir_horas:-4}
-    case "$_el_h" in ''|*[!0-9]*) _el_h=4 ;; esac
+    # Uma aplicacao a cada 3h50 (230 min; o elixir dura 4h). Marca ANTES de
+    # usar: reinicio ou falha nao geram segunda leva.
+    _el_h=${FUNC_elixir_min:-230}
+    case "$_el_h" in ''|*[!0-9]*) _el_h=230 ;; esac
     _el_agora=`date +%s`
     _el_ult=`cat "$TMP/last_elixir" 2>/dev/null`
     case "$_el_ult" in ''|*[!0-9]*) _el_ult=0 ;; esac
-    if [ $((_el_agora - _el_ult)) -lt $((_el_h * 3600)) ]; then
+    if [ $((_el_agora - _el_ult)) -lt $((_el_h * 60)) ]; then
         unset _el_h _el_agora _el_ult
         return
     fi

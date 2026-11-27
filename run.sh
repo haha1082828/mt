@@ -10,11 +10,11 @@ twm_play() {
     # da tarefas_livres. Quando nao ha modo 5-7, retorna na hora.
     al_apply_saved 2>/dev/null
 
-    # Elixir: aplicado 10 minutos ANTES de cada batalha/evento (Torneio,
+    # Elixir: aplicado de 10 a 6 minutos ANTES de cada batalha/evento (Torneio,
     # Altares, Vale, Rei, Coliseu do Cla e Bandeiras). Nao vale para o
     # Coliseu comum. A trava de 3h50 fica dentro do use_elixir.
     case `date +%H:%M` in
-        (09:5[0-4]|10:5[0-4]|13:5[0-4]|14:5[0-4]|15:5[0-4]|18:5[0-4]|20:5[0-4]|21:5[0-4]|10:2[0-4]|12:2[0-4]|16:2[0-4]|22:2[0-4]|10:0[0-4]|16:0[0-4])
+        (09:4[5-9]|10:4[5-9]|13:4[5-9]|14:4[5-9]|15:4[5-9]|18:4[5-9]|20:4[5-9]|21:4[5-9]|10:1[5-9]|12:1[5-9]|16:1[5-9]|22:1[5-9]|10:0[0-4]|16:0[0-4])
             use_elixir 2>/dev/null
             ;;
     esac
